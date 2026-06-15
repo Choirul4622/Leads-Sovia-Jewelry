@@ -111,43 +111,20 @@
             Distribusi Leads Sales: <span id="drilldown-sales-title" style="color: var(--gold-primary); font-weight: 700;">Semua Sales</span>
             <span id="drilldown-sales-qty" class="badge synced" style="font-size: 0.85rem; font-family: var(--font-body); padding: 0.35rem 0.75rem;">Total: 0 Qty</span>
           </h2>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-top: 1rem;">
-            <!-- Distribusi Sumber Leads -->
-            <div>
-              <h3 style="font-family: var(--font-title); font-size: 1.05rem; font-weight: 600; margin-bottom: 1rem; color: var(--gold-primary); border-bottom: 1px dashed var(--border-color); padding-bottom: 0.5rem;">Sebaran Sumber Leads</h3>
-              <div style="overflow-x: auto;">
-                <table class="history-table" style="font-size: 0.85rem;">
-                  <thead>
-                    <tr>
-                      <th>Sumber Leads</th>
-                      <th>Jumlah Transaksi</th>
-                      <th>Total Qty</th>
-                    </tr>
-                  </thead>
-                  <tbody id="drilldown-sources-tbody">
-                    <!-- Diisi otomatis -->
-                  </tbody>
-                </table>
-              </div>
-            </div>
-            <!-- Distribusi Jenis Pesan -->
-            <div>
-              <h3 style="font-family: var(--font-title); font-size: 1.05rem; font-weight: 600; margin-bottom: 1rem; color: var(--gold-primary); border-bottom: 1px dashed var(--border-color); padding-bottom: 0.5rem;">Breakdown Jenis Pesan</h3>
-              <div style="overflow-x: auto;">
-                <table class="history-table" style="font-size: 0.85rem;">
-                  <thead>
-                    <tr>
-                      <th>Jenis Pesan</th>
-                      <th>Jumlah Transaksi</th>
-                      <th>Total Qty</th>
-                    </tr>
-                  </thead>
-                  <tbody id="drilldown-messages-tbody">
-                    <!-- Diisi otomatis -->
-                  </tbody>
-                </table>
-              </div>
-            </div>
+          <div style="margin-top: 1rem; overflow-x: auto;">
+            <table class="history-table" style="font-size: 0.85rem;">
+              <thead>
+                <tr>
+                  <th>Nama Sales</th>
+                  <th>Sumber Leads</th>
+                  <th>Jenis Pesan</th>
+                  <th>Total Qty</th>
+                </tr>
+              </thead>
+              <tbody id="drilldown-unified-tbody">
+                <!-- Diisi otomatis -->
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
