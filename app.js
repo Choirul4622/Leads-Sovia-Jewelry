@@ -43,8 +43,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // 5. Inisialisasi Form Input Leads
-  generateLeadId();
-  initializeLeadDate();
+  resetLeadForm();
 
   // 6. Muat Data Lokal Pertama Kali
   await loadLocalDataAndRefreshUI();
@@ -211,27 +210,111 @@ function initializeLeadDate() {
 }
 
 /**
+ * Menambahkan satu baris item (Sumber Leads, Jenis Pesan, Qty) pada form rekapitulasi leads
+ */
+function addLeadItemRow(sourceVal = '', messageVal = '', qtyVal = 1) {
+  const container = document.getElementById('leads-items-container');
+  if (!container) return;
+
+  const rowId = `lead-item-row-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+  
+  // Options for dropdowns
+  let sourceOptionsHtml = '<option value="">-- Pilih Sumber --</option>';
+  validationOptions.sources.forEach(opt => {
+    sourceOptionsHtml += `<option value="${opt}" ${opt === sourceVal ? 'selected' : ''}>${opt}</option>`;
+  });
+
+  let messageOptionsHtml = '<option value="">-- Pilih Jenis Pesan --</option>';
+  validationOptions.messages.forEach(opt => {
+    messageOptionsHtml += `<option value="${opt}" ${opt === messageVal ? 'selected' : ''}>${opt}</option>`;
+  });
+
+  const rowHtml = `
+    <div class="lead-item-row" id="${rowId}">
+      <div class="form-group">
+        <label>Sumber Leads</label>
+        <select class="form-control lead-item-source" required>
+          ${sourceOptionsHtml}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Jenis Pesan</label>
+        <select class="form-control lead-item-message" required>
+          ${messageOptionsHtml}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Qty / Jumlah</label>
+        <input type="number" class="form-control lead-item-qty" min="1" required value="${qtyVal}">
+      </div>
+      <button type="button" class="btn-action delete btn-remove-item-row" onclick="removeLeadItemRow('${rowId}')" style="height: 42px; width: 42px; display: flex; align-items: center; justify-content: center; background-color: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 6px;" title="Hapus Baris">
+        <svg viewBox="0 0 24 24" style="width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2;"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+      </button>
+    </div>
+  `;
+  container.insertAdjacentHTML('beforeend', rowHtml);
+  updateRemoveButtonsVisibility();
+}
+
+/**
+ * Menghapus baris item tertentu dari form rekapitulasi leads
+ */
+function removeLeadItemRow(rowId) {
+  const row = document.getElementById(rowId);
+  if (row) {
+    row.remove();
+  }
+  updateRemoveButtonsVisibility();
+}
+
+/**
+ * Menampilkan/menyembunyikan tombol hapus baris tergantung jumlah baris yang ada
+ */
+function updateRemoveButtonsVisibility() {
+  const rows = document.querySelectorAll('.lead-item-row');
+  rows.forEach(row => {
+    const btn = row.querySelector('.btn-remove-item-row');
+    if (btn) {
+      if (rows.length <= 1) {
+        btn.style.display = 'none';
+      } else {
+        btn.style.display = 'flex';
+      }
+    }
+  });
+}
+
+/**
  * Mengisi opsi pilihan dropdown pada form leads dari database lokal
  */
 function renderDropdownSelectors() {
   const salesDropdown = document.getElementById('lead-sales');
-  const sourceDropdown = document.getElementById('lead-source');
-  const messageDropdown = document.getElementById('lead-message');
 
   // Bersihkan opsi lama, sisakan placeholder
   salesDropdown.innerHTML = '<option value="">-- Pilih Sales --</option>';
-  sourceDropdown.innerHTML = '<option value="">-- Pilih Sumber --</option>';
-  messageDropdown.innerHTML = '<option value="">-- Pilih Jenis Pesan --</option>';
 
   // Isi dengan data lokal
   validationOptions.sales.forEach(opt => {
     salesDropdown.innerHTML += `<option value="${opt}">${opt}</option>`;
   });
-  validationOptions.sources.forEach(opt => {
-    sourceDropdown.innerHTML += `<option value="${opt}">${opt}</option>`;
+
+  // Isi dropdown di baris dynamic item yang ada
+  const sourceDropdowns = document.querySelectorAll('.lead-item-source');
+  sourceDropdowns.forEach(dropdown => {
+    const currentVal = dropdown.value;
+    dropdown.innerHTML = '<option value="">-- Pilih Sumber --</option>';
+    validationOptions.sources.forEach(opt => {
+      dropdown.innerHTML += `<option value="${opt}" ${opt === currentVal ? 'selected' : ''}>${opt}</option>`;
+    });
   });
-  validationOptions.messages.forEach(opt => {
-    messageDropdown.innerHTML += `<option value="${opt}">${opt}</option>`;
+
+  const messageDropdowns = document.querySelectorAll('.lead-item-message');
+  messageDropdowns.forEach(dropdown => {
+    const currentVal = dropdown.value;
+    dropdown.innerHTML = '<option value="">-- Pilih Jenis Pesan --</option>';
+    validationOptions.messages.forEach(opt => {
+      dropdown.innerHTML += `<option value="${opt}" ${opt === currentVal ? 'selected' : ''}>${opt}</option>`;
+    });
   });
 }
 
@@ -247,30 +330,71 @@ async function handleLeadSubmit(event) {
   // Format Tanggal untuk disimpan di DB Sheets (YYYY-MM-DD HH:mm:ss)
   const inputDateTime = document.getElementById('lead-date').value; // format: 2026-06-15T11:26
   const formattedDate = inputDateTime.replace('T', ' ') + ':00';
-  
-  const leadData = {
-    'ID Leads': idLeads,
-    'Tanggal Leads': formattedDate,
-    'Nama Sales': document.getElementById('lead-sales').value,
-    'Sumber Leads': document.getElementById('lead-source').value,
-    'Jenis Pesan': document.getElementById('lead-message').value,
-    'Qty': parseInt(document.getElementById('lead-qty').value, 10) || 1,
-    'Timestamp Created': mode === 'create' ? new Date().toISOString() : '', // akan diatur di server, di lokal untuk visual
-    'Timestamp Updated': new Date().toISOString(),
-    'Status': 'Active'
-  };
+  const salesName = document.getElementById('lead-sales').value;
 
-  // 1. Simpan Lokal ke IndexedDB
-  await window.soviaDb.saveLead(leadData);
-
-  // 2. Antrekan ke Sync Queue
-  const queueAction = mode === 'create' ? 'create_lead' : 'update_lead';
-  await window.soviaDb.addToQueue(queueAction, idLeads, null, leadData);
-
-  // 3. Informasikan Ke User
   if (mode === 'create') {
-    showToast(`Lead ${idLeads} disimpan lokal.`, 'success');
+    const itemRows = document.querySelectorAll('.lead-item-row');
+    if (itemRows.length === 0) {
+      showToast('Harap tambahkan setidaknya satu item rekap!', 'warning');
+      return;
+    }
+
+    // Simpan masing-masing baris item rekapitulasi
+    for (let i = 0; i < itemRows.length; i++) {
+      const row = itemRows[i];
+      const source = row.querySelector('.lead-item-source').value;
+      const message = row.querySelector('.lead-item-message').value;
+      const qty = parseInt(row.querySelector('.lead-item-qty').value, 10) || 1;
+
+      // Suffix ID jika ada lebih dari 1 item, pertahankan base ID jika hanya ada 1 item
+      const itemLeadId = itemRows.length > 1 ? `${idLeads}-${i + 1}` : idLeads;
+
+      const leadData = {
+        'ID Leads': itemLeadId,
+        'Tanggal Leads': formattedDate,
+        'Nama Sales': salesName,
+        'Sumber Leads': source,
+        'Jenis Pesan': message,
+        'Qty': qty,
+        'Timestamp Created': new Date().toISOString(),
+        'Timestamp Updated': new Date().toISOString(),
+        'Status': 'Active'
+      };
+
+      // 1. Simpan Lokal ke IndexedDB
+      await window.soviaDb.saveLead(leadData);
+
+      // 2. Antrekan ke Sync Queue
+      await window.soviaDb.addToQueue('create_lead', itemLeadId, null, leadData);
+    }
+
+    showToast(`Berhasil menyimpan ${itemRows.length} rekap leads secara lokal.`, 'success');
+
   } else {
+    // Edit mode (hanya 1 baris item terpilih yang di-update)
+    const itemRow = document.querySelector('.lead-item-row');
+    const source = itemRow.querySelector('.lead-item-source').value;
+    const message = itemRow.querySelector('.lead-item-message').value;
+    const qty = parseInt(itemRow.querySelector('.lead-item-qty').value, 10) || 1;
+
+    const leadData = {
+      'ID Leads': idLeads,
+      'Tanggal Leads': formattedDate,
+      'Nama Sales': salesName,
+      'Sumber Leads': source,
+      'Jenis Pesan': message,
+      'Qty': qty,
+      'Timestamp Created': '', // Biarkan server tetap mempertahankan waktu pembuatan asli
+      'Timestamp Updated': new Date().toISOString(),
+      'Status': 'Active'
+    };
+
+    // 1. Simpan Lokal ke IndexedDB
+    await window.soviaDb.saveLead(leadData);
+
+    // 2. Antrekan ke Sync Queue
+    await window.soviaDb.addToQueue('update_lead', idLeads, null, leadData);
+
     showToast(`Lead ${idLeads} diperbarui secara lokal.`, 'success');
   }
 
@@ -304,9 +428,19 @@ async function editLead(leadId) {
   document.getElementById('lead-date').value = cleanDate;
   
   document.getElementById('lead-sales').value = lead['Nama Sales'];
-  document.getElementById('lead-source').value = lead['Sumber Leads'];
-  document.getElementById('lead-message').value = lead['Jenis Pesan'];
-  document.getElementById('lead-qty').value = lead['Qty'];
+
+  // Kosongkan item list lama dan pasang 1 baris item dengan nilai lead
+  const container = document.getElementById('leads-items-container');
+  if (container) {
+    container.innerHTML = '';
+  }
+  addLeadItemRow(lead['Sumber Leads'], lead['Jenis Pesan'], lead['Qty']);
+
+  // Sembunyikan tombol "Tambah Baris" saat mode edit
+  const addBtn = document.getElementById('btn-add-item-row');
+  if (addBtn) {
+    addBtn.style.display = 'none';
+  }
 
   // Ganti Tulisan Tombol
   document.getElementById('btn-submit-lead').innerText = 'Perbarui Rekap';
@@ -346,13 +480,25 @@ function resetLeadForm() {
   initializeLeadDate();
   
   document.getElementById('lead-sales').value = '';
-  document.getElementById('lead-source').value = '';
-  document.getElementById('lead-message').value = '';
-  document.getElementById('lead-qty').value = '1';
+
+  // Kosongkan item list lama dan pasang 1 baris kosong awal
+  const container = document.getElementById('leads-items-container');
+  if (container) {
+    container.innerHTML = '';
+  }
+  addLeadItemRow();
+
+  // Tampilkan kembali tombol "Tambah Baris"
+  const addBtn = document.getElementById('btn-add-item-row');
+  if (addBtn) {
+    addBtn.style.display = 'flex';
+  }
 
   const btn = document.getElementById('btn-submit-lead');
-  btn.innerText = 'Simpan Rekap';
-  btn.classList.remove('editing');
+  if (btn) {
+    btn.innerText = 'Simpan Rekap';
+    btn.classList.remove('editing');
+  }
 }
 
 /**
