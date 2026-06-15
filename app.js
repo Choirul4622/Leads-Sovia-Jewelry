@@ -7,6 +7,7 @@
 let currentLeads = [];
 let validationOptions = { sales: [], sources: [], messages: [] };
 let syncStatusGlobal = { isOnline: false, isSyncing: false, pendingCount: 0 };
+let selectedSalesDashboard = 'Semua Sales';
 
 document.addEventListener('DOMContentLoaded', async () => {
   // 1. Inisialisasi Database
@@ -588,6 +589,28 @@ function resetDashboardFilters() {
 /**
  * Mengkalkulasi metrik & merender dashboard secara realtime
  */
+/**
+ * Mengubah sales terpilih di dashboard dan merender ulang
+ */
+function selectSalesDashboard(salesName) {
+  selectedSalesDashboard = salesName;
+  renderDashboard();
+  showToast(`Menampilkan detail analitik untuk ${salesName}`, 'info');
+}
+
+/**
+ * Memilih tanggal harian dari tabel summary untuk memfilter dashboard
+ */
+function selectDashboardDate(day) {
+  document.getElementById('filter-start-date').value = day;
+  document.getElementById('filter-end-date').value = day;
+  renderDashboard();
+  showToast(`Menampilkan data untuk tanggal ${day}`, 'info');
+}
+
+/**
+ * Mengkalkulasi metrik & merender dashboard secara realtime dengan drilldown kartu per sales
+ */
 function renderDashboard() {
   const startDateStr = document.getElementById('filter-start-date').value;
   const endDateStr = document.getElementById('filter-end-date').value;
@@ -605,30 +628,26 @@ function renderDashboard() {
     return leadDate >= filterStart && leadDate <= filterEnd;
   });
 
-  // 1. Hitung Metrik Kartu Utama
+  // 1. Hitung total transaksi dan qty keseluruhan
   const totalLeadsCount = filteredLeads.length;
   let totalQty = 0;
-  
-  // Penjualan/Leads per Sales
+
+  // Map untuk memetakan performa sales di range terpilih
   const salesMap = {};
-  // Penjualan/Leads per Sumber
-  const sourcesMap = {};
-  // Rekap harian
   const dailySummary = {};
 
   filteredLeads.forEach(lead => {
     const qty = parseInt(lead['Qty'], 10) || 0;
     totalQty += qty;
 
-    // Sales map (berdasarkan Qty)
-    const sales = lead['Nama Sales'];
-    salesMap[sales] = (salesMap[sales] || 0) + qty;
+    const sales = lead['Nama Sales'] || 'Unknown';
+    if (!salesMap[sales]) {
+      salesMap[sales] = { count: 0, qty: 0 };
+    }
+    salesMap[sales].count += 1;
+    salesMap[sales].qty += qty;
 
-    // Sources map (berdasarkan Qty)
-    const source = lead['Sumber Leads'];
-    sourcesMap[source] = (sourcesMap[source] || 0) + qty;
-
-    // Daily recap grouping (berdasarkan Tanggal YYYY-MM-DD)
+    // Daily summary grouping (berdasarkan Tanggal YYYY-MM-DD)
     const dateOnly = lead['Tanggal Leads'].substring(0, 10);
     if (!dailySummary[dateOnly]) {
       dailySummary[dateOnly] = { count: 0, qty: 0, salesMap: {} };
@@ -638,71 +657,47 @@ function renderDashboard() {
     dailySummary[dateOnly].salesMap[sales] = (dailySummary[dateOnly].salesMap[sales] || 0) + qty;
   });
 
-  // Tulis ke HTML Metrik
-  document.getElementById('metric-total-leads').innerText = totalLeadsCount;
-  document.getElementById('metric-total-qty').innerText = totalQty;
+  // 2. Render Kartu Per Sales
+  const cardsContainer = document.getElementById('sales-cards-container');
+  cardsContainer.innerHTML = '';
 
-  // Hitung Top Sales
-  let topSalesName = '-';
-  let topSalesQty = 0;
-  for (const s in salesMap) {
-    if (salesMap[s] > topSalesQty) {
-      topSalesQty = salesMap[s];
-      topSalesName = s;
-    }
-  }
-  document.getElementById('metric-top-sales').innerText = topSalesQty > 0 
-    ? `${topSalesName} (${topSalesQty} Qty)` 
-    : '-';
+  // Buat set nama sales unik dari data dan validation dropdown
+  const allSalesNames = new Set(validationOptions.sales);
+  filteredLeads.forEach(lead => {
+    if (lead['Nama Sales']) allSalesNames.add(lead['Nama Sales']);
+  });
 
-  // 2. Render Sales Leaderboard List
-  const salesList = document.getElementById('sales-leaderboard');
-  salesList.innerHTML = '';
-  
-  const sortedSales = Object.entries(salesMap).sort((a, b) => b[1] - a[1]);
-  if (sortedSales.length === 0) {
-    salesList.innerHTML = `<span style="color: var(--text-muted); font-size: 0.85rem; font-style: italic;">Tidak ada aktivitas sales di range tanggal ini.</span>`;
-  } else {
-    const maxSalesQty = sortedSales[0][1] || 1;
-    sortedSales.forEach(([name, val]) => {
-      const percentage = (val / maxSalesQty) * 100;
-      salesList.innerHTML += `
-        <div class="leaderboard-item">
-          <span class="leaderboard-name">${name}</span>
-          <span class="leaderboard-value">${val} Qty</span>
-          <div class="leaderboard-bar" style="width: ${percentage}%"></div>
-        </div>
-      `;
-    });
-  }
+  // Urutkan nama sales secara alfabetis
+  const sortedSalesNames = Array.from(allSalesNames).sort();
 
-  // 3. Render Sources Leaderboard List
-  const sourcesList = document.getElementById('sources-leaderboard');
-  sourcesList.innerHTML = '';
-  
-  const sortedSources = Object.entries(sourcesMap).sort((a, b) => b[1] - a[1]);
-  if (sortedSources.length === 0) {
-    sourcesList.innerHTML = `<span style="color: var(--text-muted); font-size: 0.85rem; font-style: italic;">Tidak ada aktivitas sumber leads di range tanggal ini.</span>`;
-  } else {
-    const maxSourceQty = sortedSources[0][1] || 1;
-    sortedSources.forEach(([name, val]) => {
-      const percentage = (val / maxSourceQty) * 100;
-      sourcesList.innerHTML += `
-        <div class="leaderboard-item">
-          <span class="leaderboard-name">${name}</span>
-          <span class="leaderboard-value">${val} Qty</span>
-          <div class="leaderboard-bar" style="width: ${percentage}%"></div>
-        </div>
-      `;
-    });
-  }
+  // Kartu pertama: "Semua Sales" (Total)
+  const isSemuaActive = selectedSalesDashboard === 'Semua Sales';
+  cardsContainer.innerHTML += `
+    <div class="card ${isSemuaActive ? 'active' : ''}" onclick="selectSalesDashboard('Semua Sales')">
+      <span class="card-title">Semua Sales (Total)</span>
+      <span class="card-value" style="font-size: 1.85rem;">${totalQty} Qty</span>
+      <span style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">${totalLeadsCount} Transaksi Leads</span>
+    </div>
+  `;
 
-  // 4. Render Daily Summary Table
+  // Kartu untuk masing-masing sales
+  sortedSalesNames.forEach(salesName => {
+    const stats = salesMap[salesName] || { count: 0, qty: 0 };
+    const isActive = selectedSalesDashboard === salesName;
+    cardsContainer.innerHTML += `
+      <div class="card ${isActive ? 'active' : ''}" onclick="selectSalesDashboard('${salesName}')">
+        <span class="card-title">Sales: ${salesName}</span>
+        <span class="card-value" style="font-size: 1.85rem;">${stats.qty} Qty</span>
+        <span style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">${stats.count} Transaksi Leads</span>
+      </div>
+    `;
+  });
+
+  // 3. Render Daily Summary Table (Keseluruhan)
   const dailyTbody = document.getElementById('dashboard-daily-table-body');
   dailyTbody.innerHTML = '';
   
   const sortedDays = Object.keys(dailySummary).sort((a, b) => new Date(b) - new Date(a));
-  
   if (sortedDays.length === 0) {
     dailyTbody.innerHTML = `<tr><td colspan="4" class="no-data-msg">Tidak ada data transaksi harian di range ini.</td></tr>`;
   } else {
@@ -720,11 +715,82 @@ function renderDashboard() {
       }
       
       dailyTbody.innerHTML += `
-        <tr>
+        <tr onclick="selectDashboardDate('${day}')" style="cursor: pointer;">
           <td><strong>${day}</strong></td>
           <td>${dayData.count} Leads</td>
           <td>${dayData.qty} Qty</td>
           <td>${dayTopSales} (${dayTopSalesQty} Qty)</td>
+        </tr>
+      `;
+    });
+  }
+
+  // 4. Render Detail Drill-down (Sumber Leads & Jenis Pesan)
+  document.getElementById('drilldown-sales-title').innerText = selectedSalesDashboard;
+  
+  // Filter leads sesuai dengan sales yang dipilih
+  const drilldownLeads = selectedSalesDashboard === 'Semua Sales'
+    ? filteredLeads
+    : filteredLeads.filter(l => l['Nama Sales'] === selectedSalesDashboard);
+
+  const drilldownQty = drilldownLeads.reduce((acc, curr) => acc + (parseInt(curr['Qty'], 10) || 0), 0);
+  document.getElementById('drilldown-sales-qty').innerText = `Total: ${drilldownQty} Qty (${drilldownLeads.length} Leads)`;
+
+  // Hitung sebaran sumber leads dan jenis pesan
+  const drilldownSources = {};
+  const drilldownMessages = {};
+
+  drilldownLeads.forEach(lead => {
+    const qty = parseInt(lead['Qty'], 10) || 0;
+    const src = lead['Sumber Leads'] || 'Tidak Diketahui';
+    const msg = lead['Jenis Pesan'] || 'Tidak Diketahui';
+
+    if (!drilldownSources[src]) {
+      drilldownSources[src] = { count: 0, qty: 0 };
+    }
+    drilldownSources[src].count += 1;
+    drilldownSources[src].qty += qty;
+
+    if (!drilldownMessages[msg]) {
+      drilldownMessages[msg] = { count: 0, qty: 0 };
+    }
+    drilldownMessages[msg].count += 1;
+    drilldownMessages[msg].qty += qty;
+  });
+
+  // Render tabel sumber
+  const sourcesTbody = document.getElementById('drilldown-sources-tbody');
+  sourcesTbody.innerHTML = '';
+  const sortedSources = Object.entries(drilldownSources).sort((a, b) => b[1].qty - a[1].qty);
+  
+  if (sortedSources.length === 0) {
+    sourcesTbody.innerHTML = `<tr><td colspan="3" class="no-data-msg">Tidak ada data sebaran sumber leads.</td></tr>`;
+  } else {
+    sortedSources.forEach(([srcName, data]) => {
+      sourcesTbody.innerHTML += `
+        <tr>
+          <td><strong>${srcName}</strong></td>
+          <td>${data.count} Transaksi</td>
+          <td><span style="color: var(--gold-primary); font-weight: 600;">${data.qty} Qty</span></td>
+        </tr>
+      `;
+    });
+  }
+
+  // Render tabel pesan
+  const messagesTbody = document.getElementById('drilldown-messages-tbody');
+  messagesTbody.innerHTML = '';
+  const sortedMessages = Object.entries(drilldownMessages).sort((a, b) => b[1].qty - a[1].qty);
+  
+  if (sortedMessages.length === 0) {
+    messagesTbody.innerHTML = `<tr><td colspan="3" class="no-data-msg">Tidak ada data jenis pesan.</td></tr>`;
+  } else {
+    sortedMessages.forEach(([msgName, data]) => {
+      messagesTbody.innerHTML += `
+        <tr>
+          <td><strong>${msgName}</strong></td>
+          <td>${data.count} Transaksi</td>
+          <td><span style="color: var(--gold-primary); font-weight: 600;">${data.qty} Qty</span></td>
         </tr>
       `;
     });
