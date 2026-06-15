@@ -5,7 +5,7 @@
 
 // State Global Aplikasi
 let currentLeads = [];
-let validationOptions = { sales: [], sources: [], messages: [] };
+let validationOptions = { sales: [], channels: [], sources: [], messages: [], blocks: [] };
 let syncStatusGlobal = { isOnline: false, isSyncing: false, pendingCount: 0 };
 let selectedSalesDashboard = 'Semua Sales';
 
@@ -210,15 +210,20 @@ function initializeLeadDate() {
 }
 
 /**
- * Menambahkan satu baris item (Sumber Leads, Jenis Pesan, Qty) pada form rekapitulasi leads
+ * Menambahkan satu baris item (Sumber Channel, Sumber Leads, Jenis Pesan, Block Loose, Qty) pada form rekapitulasi leads
  */
-function addLeadItemRow(sourceVal = '', messageVal = '', qtyVal = 1) {
+function addLeadItemRow(channelVal = '', sourceVal = '', messageVal = '', blockVal = '', qtyVal = 1) {
   const container = document.getElementById('leads-items-container');
   if (!container) return;
 
   const rowId = `lead-item-row-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
   
   // Options for dropdowns
+  let channelOptionsHtml = '<option value="">-- Pilih Channel --</option>';
+  validationOptions.channels.forEach(opt => {
+    channelOptionsHtml += `<option value="${opt}" ${opt === channelVal ? 'selected' : ''}>${opt}</option>`;
+  });
+
   let sourceOptionsHtml = '<option value="">-- Pilih Sumber --</option>';
   validationOptions.sources.forEach(opt => {
     sourceOptionsHtml += `<option value="${opt}" ${opt === sourceVal ? 'selected' : ''}>${opt}</option>`;
@@ -229,8 +234,19 @@ function addLeadItemRow(sourceVal = '', messageVal = '', qtyVal = 1) {
     messageOptionsHtml += `<option value="${opt}" ${opt === messageVal ? 'selected' : ''}>${opt}</option>`;
   });
 
+  let blockOptionsHtml = '<option value="">-- Pilih Block/Loose --</option>';
+  validationOptions.blocks.forEach(opt => {
+    blockOptionsHtml += `<option value="${opt}" ${opt === blockVal ? 'selected' : ''}>${opt}</option>`;
+  });
+
   const rowHtml = `
     <div class="lead-item-row" id="${rowId}">
+      <div class="form-group">
+        <label>Sumber Channel</label>
+        <select class="form-control lead-item-channel" required>
+          ${channelOptionsHtml}
+        </select>
+      </div>
       <div class="form-group">
         <label>Sumber Leads</label>
         <select class="form-control lead-item-source" required>
@@ -241,6 +257,12 @@ function addLeadItemRow(sourceVal = '', messageVal = '', qtyVal = 1) {
         <label>Jenis Pesan</label>
         <select class="form-control lead-item-message" required>
           ${messageOptionsHtml}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Block Loose</label>
+        <select class="form-control lead-item-block" required>
+          ${blockOptionsHtml}
         </select>
       </div>
       <div class="form-group">
@@ -299,6 +321,15 @@ function renderDropdownSelectors() {
   });
 
   // Isi dropdown di baris dynamic item yang ada
+  const channelDropdowns = document.querySelectorAll('.lead-item-channel');
+  channelDropdowns.forEach(dropdown => {
+    const currentVal = dropdown.value;
+    dropdown.innerHTML = '<option value="">-- Pilih Channel --</option>';
+    validationOptions.channels.forEach(opt => {
+      dropdown.innerHTML += `<option value="${opt}" ${opt === currentVal ? 'selected' : ''}>${opt}</option>`;
+    });
+  });
+
   const sourceDropdowns = document.querySelectorAll('.lead-item-source');
   sourceDropdowns.forEach(dropdown => {
     const currentVal = dropdown.value;
@@ -313,6 +344,15 @@ function renderDropdownSelectors() {
     const currentVal = dropdown.value;
     dropdown.innerHTML = '<option value="">-- Pilih Jenis Pesan --</option>';
     validationOptions.messages.forEach(opt => {
+      dropdown.innerHTML += `<option value="${opt}" ${opt === currentVal ? 'selected' : ''}>${opt}</option>`;
+    });
+  });
+
+  const blockDropdowns = document.querySelectorAll('.lead-item-block');
+  blockDropdowns.forEach(dropdown => {
+    const currentVal = dropdown.value;
+    dropdown.innerHTML = '<option value="">-- Pilih Block/Loose --</option>';
+    validationOptions.blocks.forEach(opt => {
       dropdown.innerHTML += `<option value="${opt}" ${opt === currentVal ? 'selected' : ''}>${opt}</option>`;
     });
   });
@@ -342,8 +382,10 @@ async function handleLeadSubmit(event) {
     // Simpan masing-masing baris item rekapitulasi
     for (let i = 0; i < itemRows.length; i++) {
       const row = itemRows[i];
+      const channel = row.querySelector('.lead-item-channel').value;
       const source = row.querySelector('.lead-item-source').value;
       const message = row.querySelector('.lead-item-message').value;
+      const block = row.querySelector('.lead-item-block').value;
       const qty = parseInt(row.querySelector('.lead-item-qty').value, 10) || 1;
 
       // Suffix ID jika ada lebih dari 1 item, pertahankan base ID jika hanya ada 1 item
@@ -353,8 +395,10 @@ async function handleLeadSubmit(event) {
         'ID Leads': itemLeadId,
         'Tanggal Leads': formattedDate,
         'Nama Sales': salesName,
+        'Sumber Channel': channel,
         'Sumber Leads': source,
         'Jenis Pesan': message,
+        'Block Loose': block,
         'Qty': qty,
         'Timestamp Created': new Date().toISOString(),
         'Timestamp Updated': new Date().toISOString(),
@@ -373,16 +417,20 @@ async function handleLeadSubmit(event) {
   } else {
     // Edit mode (hanya 1 baris item terpilih yang di-update)
     const itemRow = document.querySelector('.lead-item-row');
+    const channel = itemRow.querySelector('.lead-item-channel').value;
     const source = itemRow.querySelector('.lead-item-source').value;
     const message = itemRow.querySelector('.lead-item-message').value;
+    const block = itemRow.querySelector('.lead-item-block').value;
     const qty = parseInt(itemRow.querySelector('.lead-item-qty').value, 10) || 1;
 
     const leadData = {
       'ID Leads': idLeads,
       'Tanggal Leads': formattedDate,
       'Nama Sales': salesName,
+      'Sumber Channel': channel,
       'Sumber Leads': source,
       'Jenis Pesan': message,
+      'Block Loose': block,
       'Qty': qty,
       'Timestamp Created': '', // Biarkan server tetap mempertahankan waktu pembuatan asli
       'Timestamp Updated': new Date().toISOString(),
@@ -434,7 +482,7 @@ async function editLead(leadId) {
   if (container) {
     container.innerHTML = '';
   }
-  addLeadItemRow(lead['Sumber Leads'], lead['Jenis Pesan'], lead['Qty']);
+  addLeadItemRow(lead['Sumber Channel'] || '', lead['Sumber Leads'], lead['Jenis Pesan'], lead['Block Loose'] || '', lead['Qty']);
 
   // Sembunyikan tombol "Tambah Baris" saat mode edit
   const addBtn = document.getElementById('btn-add-item-row');
@@ -509,7 +557,7 @@ async function renderHistoryTable(leadsToRender = currentLeads) {
   tbody.innerHTML = '';
 
   if (leadsToRender.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="8" class="no-data-msg">Tidak ada data rekapitulasi leads ditemukan.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" class="no-data-msg">Tidak ada data rekapitulasi leads ditemukan.</td></tr>`;
     return;
   }
 
@@ -537,8 +585,10 @@ async function renderHistoryTable(leadsToRender = currentLeads) {
         <td><strong>${lead['ID Leads']}</strong></td>
         <td>${lead['Tanggal Leads']}</td>
         <td>${lead['Nama Sales']}</td>
+        <td>${lead['Sumber Channel'] || '-'}</td>
         <td>${lead['Sumber Leads']}</td>
         <td>${lead['Jenis Pesan']}</td>
+        <td>${lead['Block Loose'] || '-'}</td>
         <td>${lead['Qty']}</td>
         <td>${badgeHtml}</td>
         <td style="text-align: center;">
@@ -571,8 +621,10 @@ function filterHistoryTable() {
     return (
       lead['ID Leads'].toLowerCase().includes(query) ||
       lead['Nama Sales'].toLowerCase().includes(query) ||
+      (lead['Sumber Channel'] || '').toLowerCase().includes(query) ||
       lead['Sumber Leads'].toLowerCase().includes(query) ||
       lead['Jenis Pesan'].toLowerCase().includes(query) ||
+      (lead['Block Loose'] || '').toLowerCase().includes(query) ||
       lead['Tanggal Leads'].toLowerCase().includes(query)
     );
   });
@@ -589,8 +641,10 @@ function filterHistoryTable() {
  */
 function renderValidationLists() {
   renderOptionList('sales', validationOptions.sales);
+  renderOptionList('channels', validationOptions.channels);
   renderOptionList('sources', validationOptions.sources);
   renderOptionList('messages', validationOptions.messages);
+  renderOptionList('blocks', validationOptions.blocks);
 }
 
 /**
@@ -685,16 +739,20 @@ async function deleteOption(type, value) {
 // Helper: Menerjemahkan type input ke nama Type di database
 function getDbType(type) {
   if (type === 'sales') return 'Nama Sales';
+  if (type === 'channels') return 'Sumber Channel';
   if (type === 'sources') return 'Sumber Leads';
   if (type === 'messages') return 'Jenis Pesan';
+  if (type === 'blocks') return 'Block Loose';
   return '';
 }
 
 // Helper: Mengambil array opsi saat ini
 function getOptionArray(type) {
   if (type === 'sales') return [...validationOptions.sales];
+  if (type === 'channels') return [...validationOptions.channels];
   if (type === 'sources') return [...validationOptions.sources];
   if (type === 'messages') return [...validationOptions.messages];
+  if (type === 'blocks') return [...validationOptions.blocks];
   return [];
 }
 
@@ -871,7 +929,7 @@ function renderDashboard() {
     });
   }
 
-  // 4. Render Detail Drill-down (Unified Table: Nama Sales -> Sumber Leads -> Jenis Pesan -> Total Leads)
+  // 4. Render Detail Drill-down (Unified Table: Nama Sales -> Sumber Channel -> Sumber Leads -> Jenis Pesan -> Block Loose -> Total Leads)
   document.getElementById('drilldown-sales-title').innerText = selectedSalesDashboard;
   
   // Filter leads sesuai dengan sales yang dipilih
@@ -882,32 +940,44 @@ function renderDashboard() {
   const drilldownQty = drilldownLeads.reduce((acc, curr) => acc + (parseInt(curr['Qty'], 10) || 0), 0);
   document.getElementById('drilldown-sales-qty').innerText = `Total: ${drilldownQty} Leads (${drilldownLeads.length} Recap)`;
 
-  // Group data by Sales -> Source -> Message Type
+  // Group data by Sales -> Channel -> Source -> Message Type -> Block Loose
   const groups = {};
   drilldownLeads.forEach(lead => {
     const sales = lead['Nama Sales'] || 'Tidak Diketahui';
+    const channel = lead['Sumber Channel'] || 'Tidak Diketahui';
     const source = lead['Sumber Leads'] || 'Tidak Diketahui';
     const msg = lead['Jenis Pesan'] || 'Tidak Diketahui';
+    const block = lead['Block Loose'] || 'Tidak Diketahui';
     const qty = parseInt(lead['Qty'], 10) || 0;
     
     if (!groups[sales]) groups[sales] = {};
-    if (!groups[sales][source]) groups[sales][source] = {};
-    groups[sales][source][msg] = (groups[sales][source][msg] || 0) + qty;
+    if (!groups[sales][channel]) groups[sales][channel] = {};
+    if (!groups[sales][channel][source]) groups[sales][channel][source] = {};
+    if (!groups[sales][channel][source][msg]) groups[sales][channel][source][msg] = {};
+    groups[sales][channel][source][msg][block] = (groups[sales][channel][source][msg][block] || 0) + qty;
   });
 
   // Flatten the groups to a list of rows
   const rows = [];
   const sortedSalesKeys = Object.keys(groups).sort();
   sortedSalesKeys.forEach(sales => {
-    const sortedSourceKeys = Object.keys(groups[sales]).sort();
-    sortedSourceKeys.forEach(source => {
-      const sortedMsgKeys = Object.keys(groups[sales][source]).sort();
-      sortedMsgKeys.forEach(msg => {
-        rows.push({
-          sales,
-          source,
-          msg,
-          qty: groups[sales][source][msg]
+    const sortedChannelKeys = Object.keys(groups[sales]).sort();
+    sortedChannelKeys.forEach(channel => {
+      const sortedSourceKeys = Object.keys(groups[sales][channel]).sort();
+      sortedSourceKeys.forEach(source => {
+        const sortedMsgKeys = Object.keys(groups[sales][channel][source]).sort();
+        sortedMsgKeys.forEach(msg => {
+          const sortedBlockKeys = Object.keys(groups[sales][channel][source][msg]).sort();
+          sortedBlockKeys.forEach(block => {
+            rows.push({
+              sales,
+              channel,
+              source,
+              msg,
+              block,
+              qty: groups[sales][channel][source][msg][block]
+            });
+          });
         });
       });
     });
@@ -915,7 +985,10 @@ function renderDashboard() {
 
   // Pre-calculate rowspan counts
   const salesSpan = [];
+  const channelSpan = [];
   const sourceSpan = [];
+  const msgSpan = [];
+
   let idx = 0;
   while (idx < rows.length) {
     let nextSalesIdx = idx;
@@ -928,18 +1001,48 @@ function renderDashboard() {
       salesSpan[k] = 0;
     }
     
-    let sourceStart = idx;
-    while (sourceStart < nextSalesIdx) {
-      let sourceEnd = sourceStart;
-      while (sourceEnd < nextSalesIdx && rows[sourceEnd].source === rows[sourceStart].source) {
-        sourceEnd++;
+    let channelStart = idx;
+    while (channelStart < nextSalesIdx) {
+      let channelEnd = channelStart;
+      while (channelEnd < nextSalesIdx && rows[channelEnd].channel === rows[channelStart].channel) {
+        channelEnd++;
       }
-      const sourceCount = sourceEnd - sourceStart;
-      sourceSpan[sourceStart] = sourceCount;
-      for (let k = sourceStart + 1; k < sourceEnd; k++) {
-        sourceSpan[k] = 0;
+      const channelCount = channelEnd - channelStart;
+      channelSpan[channelStart] = channelCount;
+      for (let k = channelStart + 1; k < channelEnd; k++) {
+        channelSpan[k] = 0;
       }
-      sourceStart = sourceEnd;
+      
+      let sourceStart = channelStart;
+      while (sourceStart < channelEnd) {
+        let sourceEnd = sourceStart;
+        while (sourceEnd < channelEnd && rows[sourceEnd].source === rows[sourceStart].source) {
+          sourceEnd++;
+        }
+        const sourceCount = sourceEnd - sourceStart;
+        sourceSpan[sourceStart] = sourceCount;
+        for (let k = sourceStart + 1; k < sourceEnd; k++) {
+          sourceSpan[k] = 0;
+        }
+        
+        let msgStart = sourceStart;
+        while (msgStart < sourceEnd) {
+          let msgEnd = msgStart;
+          while (msgEnd < sourceEnd && rows[msgEnd].msg === rows[msgStart].msg) {
+            msgEnd++;
+          }
+          const msgCount = msgEnd - msgStart;
+          msgSpan[msgStart] = msgCount;
+          for (let k = msgStart + 1; k < msgEnd; k++) {
+            msgSpan[k] = 0;
+          }
+          msgStart = msgEnd;
+        }
+        
+        sourceStart = sourceEnd;
+      }
+      
+      channelStart = channelEnd;
     }
     
     idx = nextSalesIdx;
@@ -950,17 +1053,23 @@ function renderDashboard() {
   unifiedTbody.innerHTML = '';
 
   if (rows.length === 0) {
-    unifiedTbody.innerHTML = `<tr><td colspan="4" class="no-data-msg">Tidak ada data untuk kombinasi analitik ini.</td></tr>`;
+    unifiedTbody.innerHTML = `<tr><td colspan="6" class="no-data-msg">Tidak ada data untuk kombinasi analitik ini.</td></tr>`;
   } else {
     rows.forEach((row, rIdx) => {
       let rowHtml = '<tr>';
       if (salesSpan[rIdx] > 0) {
         rowHtml += `<td rowspan="${salesSpan[rIdx]}" style="vertical-align: top; border-right: 1px solid var(--border-color);"><strong>${row.sales}</strong></td>`;
       }
+      if (channelSpan[rIdx] > 0) {
+        rowHtml += `<td rowspan="${channelSpan[rIdx]}" style="vertical-align: top; border-right: 1px solid var(--border-color);">${row.channel}</td>`;
+      }
       if (sourceSpan[rIdx] > 0) {
         rowHtml += `<td rowspan="${sourceSpan[rIdx]}" style="vertical-align: top; border-right: 1px solid var(--border-color);">${row.source}</td>`;
       }
-      rowHtml += `<td style="border-right: 1px solid var(--border-color);">${row.msg}</td>`;
+      if (msgSpan[rIdx] > 0) {
+        rowHtml += `<td rowspan="${msgSpan[rIdx]}" style="vertical-align: top; border-right: 1px solid var(--border-color);">${row.msg}</td>`;
+      }
+      rowHtml += `<td style="border-right: 1px solid var(--border-color);">${row.block}</td>`;
       rowHtml += `<td><span style="color: var(--gold-primary); font-weight: 600;">${row.qty} Leads</span></td>`;
       rowHtml += '</tr>';
       unifiedTbody.innerHTML += rowHtml;
