@@ -119,11 +119,54 @@
                   <th>Sumber Channel</th>
                   <th>Sumber Leads</th>
                   <th>Jenis Pesan</th>
-                  <th>Block Loose</th>
                   <th>Total Leads</th>
                 </tr>
               </thead>
               <tbody id="drilldown-unified-tbody">
+                <!-- Diisi otomatis -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Filter Bertingkat Chat Terhenti -->
+        <div class="section-panel">
+          <h2 class="section-title">
+            Filter Bertingkat Chat Terhenti: <span id="drilldown-terhenti-title" style="color: var(--gold-primary); font-weight: 700;">Semua Sales</span>
+          </h2>
+          <div style="margin-top: 1rem; overflow-x: auto;">
+            <table class="history-table" style="font-size: 0.85rem;">
+              <thead>
+                <tr>
+                  <th>Nama Sales</th>
+                  <th>Sumber Channel</th>
+                  <th>Block Lose</th>
+                  <th>Total Leads</th>
+                </tr>
+              </thead>
+              <tbody id="drilldown-terhenti-tbody">
+                <!-- Diisi otomatis -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Filter Bertingkat Chat Lama -->
+        <div class="section-panel">
+          <h2 class="section-title">
+            Filter Bertingkat Chat Lama: <span id="drilldown-lama-title" style="color: var(--gold-primary); font-weight: 700;">Semua Sales</span>
+          </h2>
+          <div style="margin-top: 1rem; overflow-x: auto;">
+            <table class="history-table" style="font-size: 0.85rem;">
+              <thead>
+                <tr>
+                  <th>Nama Sales</th>
+                  <th>Sumber Channel</th>
+                  <th>MQL</th>
+                  <th>Total Leads</th>
+                </tr>
+              </thead>
+              <tbody id="drilldown-lama-tbody">
                 <!-- Diisi otomatis -->
               </tbody>
             </table>
@@ -163,6 +206,12 @@
                 <option value="">-- Pilih Sales --</option>
               </select>
             </div>
+            <div class="form-group">
+              <label for="lead-channel">Sumber Channel</label>
+              <select id="lead-channel" class="form-control" required>
+                <option value="">-- Pilih Channel --</option>
+              </select>
+            </div>
           </div>
 
           <!-- Dynamic Items Section -->
@@ -174,6 +223,34 @@
             </div>
 
             <button type="button" id="btn-add-item-row" class="btn-secondary" onclick="addLeadItemRow()" style="padding: 0.5rem 1rem; font-size: 0.85rem; display: flex; align-items: center; gap: 0.5rem; margin-top: 1rem;">
+              <svg viewBox="0 0 24 24" style="width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2;"><path d="M12 5v14M5 12h14"/></svg>
+              Tambah Baris
+            </button>
+          </div>
+
+          <!-- Item Chat Terhenti Section -->
+          <div class="leads-items-section" style="margin-bottom: 1.5rem; border-top: 1px solid var(--border-color); padding-top: 1.5rem;">
+            <h3 style="font-family: var(--font-title); font-size: 1.05rem; font-weight: 600; margin-bottom: 1.25rem; color: var(--gold-primary);">Item Chat Terhenti</h3>
+            
+            <div id="terhenti-items-container">
+              <!-- Item rows will be rendered here dynamically -->
+            </div>
+
+            <button type="button" id="btn-add-terhenti-row" class="btn-secondary" onclick="addTerhentiRow()" style="padding: 0.5rem 1rem; font-size: 0.85rem; display: flex; align-items: center; gap: 0.5rem; margin-top: 1rem;">
+              <svg viewBox="0 0 24 24" style="width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2;"><path d="M12 5v14M5 12h14"/></svg>
+              Tambah Baris
+            </button>
+          </div>
+
+          <!-- Item Chat Lama Section -->
+          <div class="leads-items-section" style="margin-bottom: 1.5rem; border-top: 1px solid var(--border-color); padding-top: 1.5rem;">
+            <h3 style="font-family: var(--font-title); font-size: 1.05rem; font-weight: 600; margin-bottom: 1.25rem; color: var(--gold-primary);">Item Chat Lama</h3>
+            
+            <div id="lama-items-container">
+              <!-- Item rows will be rendered here dynamically -->
+            </div>
+
+            <button type="button" id="btn-add-lama-row" class="btn-secondary" onclick="addLamaRow()" style="padding: 0.5rem 1rem; font-size: 0.85rem; display: flex; align-items: center; gap: 0.5rem; margin-top: 1rem;">
               <svg viewBox="0 0 24 24" style="width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2;"><path d="M12 5v14M5 12h14"/></svg>
               Tambah Baris
             </button>
@@ -202,7 +279,8 @@
                 <th>Sumber Channel</th>
                 <th>Sumber Leads</th>
                 <th>Jenis Pesan</th>
-                <th>Block Loose</th>
+                <th>Block Lose</th>
+                <th>MQL</th>
                 <th>Qty</th>
                 <th>Status Sync</th>
                 <th style="width: 100px; text-align: center;">Aksi</th>
@@ -221,7 +299,7 @@
       <div class="panel-header">
         <h1 class="panel-title">
           Validation Panel
-          <span>Kelola daftar pilihan dropdown Sales, Channel, Sumber, Jenis Pesan, dan Block Loose.</span>
+          <span>Kelola daftar pilihan dropdown Sales, Channel, Sumber, Jenis Pesan, dan Block Lose.</span>
         </h1>
       </div>
 
@@ -274,14 +352,26 @@
           </div>
         </div>
 
-        <!-- 3b. Block Loose -->
+        <!-- 3b. Block Lose -->
         <div class="validation-card">
-          <h2 class="section-title">Block Loose</h2>
+          <h2 class="section-title">Block Lose</h2>
           <div class="option-input-group">
-            <input type="text" id="input-blocks" class="form-control" placeholder="Pilihan block/loose baru...">
+            <input type="text" id="input-blocks" class="form-control" placeholder="Pilihan block/lose baru...">
             <button class="btn-primary" style="padding: 0.6rem 1.25rem;" onclick="addOption('blocks')">Tambah</button>
           </div>
           <div id="list-blocks" class="option-list">
+            <!-- Diisi otomatis -->
+          </div>
+        </div>
+
+        <!-- 3c. MQL -->
+        <div class="validation-card">
+          <h2 class="section-title">MQL</h2>
+          <div class="option-input-group">
+            <input type="text" id="input-mql" class="form-control" placeholder="Pilihan MQL baru...">
+            <button class="btn-primary" style="padding: 0.6rem 1.25rem;" onclick="addOption('mql')">Tambah</button>
+          </div>
+          <div id="list-mql" class="option-list">
             <!-- Diisi otomatis -->
           </div>
         </div>
