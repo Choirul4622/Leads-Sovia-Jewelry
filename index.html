@@ -116,8 +116,10 @@
               <thead>
                 <tr>
                   <th>Nama Sales</th>
+                  <th>Sumber Channel</th>
                   <th>Sumber Leads</th>
                   <th>Jenis Pesan</th>
+                  <th>Block Loose</th>
                   <th>Total Leads</th>
                 </tr>
               </thead>
@@ -197,8 +199,10 @@
                 <th>ID Leads</th>
                 <th>Tanggal</th>
                 <th>Sales</th>
+                <th>Sumber Channel</th>
                 <th>Sumber Leads</th>
                 <th>Jenis Pesan</th>
+                <th>Block Loose</th>
                 <th>Qty</th>
                 <th>Status Sync</th>
                 <th style="width: 100px; text-align: center;">Aksi</th>
@@ -217,7 +221,7 @@
       <div class="panel-header">
         <h1 class="panel-title">
           Validation Panel
-          <span>Kelola daftar pilihan dropdown Sales, Sumber, dan Jenis Pesan.</span>
+          <span>Kelola daftar pilihan dropdown Sales, Channel, Sumber, Jenis Pesan, dan Block Loose.</span>
         </h1>
       </div>
 
@@ -230,6 +234,18 @@
             <button class="btn-primary" style="padding: 0.6rem 1.25rem;" onclick="addOption('sales')">Tambah</button>
           </div>
           <div id="list-sales" class="option-list">
+            <!-- Diisi otomatis -->
+          </div>
+        </div>
+
+        <!-- 1b. Sumber Channel -->
+        <div class="validation-card">
+          <h2 class="section-title">Sumber Channel</h2>
+          <div class="option-input-group">
+            <input type="text" id="input-channels" class="form-control" placeholder="Sumber channel baru...">
+            <button class="btn-primary" style="padding: 0.6rem 1.25rem;" onclick="addOption('channels')">Tambah</button>
+          </div>
+          <div id="list-channels" class="option-list">
             <!-- Diisi otomatis -->
           </div>
         </div>
@@ -254,6 +270,18 @@
             <button class="btn-primary" style="padding: 0.6rem 1.25rem;" onclick="addOption('messages')">Tambah</button>
           </div>
           <div id="list-messages" class="option-list">
+            <!-- Diisi otomatis -->
+          </div>
+        </div>
+
+        <!-- 3b. Block Loose -->
+        <div class="validation-card">
+          <h2 class="section-title">Block Loose</h2>
+          <div class="option-input-group">
+            <input type="text" id="input-blocks" class="form-control" placeholder="Pilihan block/loose baru...">
+            <button class="btn-primary" style="padding: 0.6rem 1.25rem;" onclick="addOption('blocks')">Tambah</button>
+          </div>
+          <div id="list-blocks" class="option-list">
             <!-- Diisi otomatis -->
           </div>
         </div>
