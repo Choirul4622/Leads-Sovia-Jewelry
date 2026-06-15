@@ -145,7 +145,8 @@
           <!-- Mode input indicator -->
           <input type="hidden" id="form-mode" value="create">
           
-          <div class="form-grid">
+          <!-- Shared Fields -->
+          <div class="form-grid" style="margin-bottom: 1.5rem;">
             <div class="form-group">
               <label for="lead-id">ID Leads (Otomatis)</label>
               <input type="text" id="lead-id" class="form-control" readonly disabled>
@@ -160,22 +161,20 @@
                 <option value="">-- Pilih Sales --</option>
               </select>
             </div>
-            <div class="form-group">
-              <label for="lead-source">Sumber Leads</label>
-              <select id="lead-source" class="form-control" required>
-                <option value="">-- Pilih Sumber --</option>
-              </select>
+          </div>
+
+          <!-- Dynamic Items Section -->
+          <div class="leads-items-section" style="margin-bottom: 1.5rem; border-top: 1px solid var(--border-color); padding-top: 1.5rem;">
+            <h3 style="font-family: var(--font-title); font-size: 1.05rem; font-weight: 600; margin-bottom: 1.25rem; color: var(--gold-primary);">Item Rekapitulasi Leads</h3>
+            
+            <div id="leads-items-container">
+              <!-- Item rows will be rendered here dynamically -->
             </div>
-            <div class="form-group">
-              <label for="lead-message">Jenis Pesan</label>
-              <select id="lead-message" class="form-control" required>
-                <option value="">-- Pilih Jenis Pesan --</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="lead-qty">Qty / Jumlah</label>
-              <input type="number" id="lead-qty" class="form-control" min="1" required value="1">
-            </div>
+
+            <button type="button" id="btn-add-item-row" class="btn-secondary" onclick="addLeadItemRow()" style="padding: 0.5rem 1rem; font-size: 0.85rem; display: flex; align-items: center; gap: 0.5rem; margin-top: 1rem;">
+              <svg viewBox="0 0 24 24" style="width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2;"><path d="M12 5v14M5 12h14"/></svg>
+              Tambah Baris
+            </button>
           </div>
 
           <div class="form-actions">
