@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Recap Leads - Sovia Jewelry</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Sidebar Navigasi -->
+  <aside>
+    <div class="brand-section">
+      <div class="brand-logo">Sovia Jewelry</div>
+      <div class="brand-subtitle">Leads Recap</div>
+    </div>
+    
+    <ul class="nav-links">
+      <li>
+        <a id="nav-dashboard" class="nav-item active" onclick="switchPanel('dashboard')">
+          <svg viewBox="0 0 24 24"><path d="M3 3h7v9H3zm11 0h7v5h-7zm0 9h7v9h-7zm-11 7h7v2H3z"/></svg>
+          Dashboard
+        </a>
+      </li>
+      <li>
+        <a id="nav-leads" class="nav-item" onclick="switchPanel('leads')">
+          <svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+          Form Leads
+        </a>
+      </li>
+      <li>
+        <a id="nav-validation" class="nav-item" onclick="switchPanel('validation')">
+          <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+          Validation Panel
+        </a>
+      </li>
+    </ul>
+
+    <!-- Status Widget Sinkronisasi -->
+    <div class="sync-widget">
+      <div class="sync-status-indicator">
+        <div id="status-dot" class="status-dot offline"></div>
+        <span id="status-label" class="status-label">Memeriksa jaringan...</span>
+      </div>
+      <span class="queue-badge">Antrean Sinkronisasi: <span id="queue-count" class="queue-count">0</span> item</span>
+      <button id="btn-sync-now" class="btn-sync" onclick="triggerManualSync()">
+        <svg viewBox="0 0 24 24">
+          <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+        </svg>
+        Sync Sekarang
+      </button>
+    </div>
+  </aside>
+
+  <!-- Konten Utama -->
+  <main>
+    
+    <!-- 1. PANEL DASHBOARD -->
+    <section id="panel-dashboard" class="panel active">
+      <div class="panel-header">
+        <h1 class="panel-title">
+          Dashboard Analitik
+          <span>Visualisasi performa leads harian dan performa sales.</span>
+        </h1>
+      </div>
+
+      <!-- Filter Tanggal -->
+      <div class="filter-bar">
+        <div class="filter-group">
+          <label for="filter-start-date">Tanggal Awal</label>
+          <input type="date" id="filter-start-date" class="filter-input">
+        </div>
+        <div class="filter-group">
+          <label for="filter-end-date">Tanggal Akhir</label>
+          <input type="date" id="filter-end-date" class="filter-input">
+        </div>
+        <button class="btn-filter" onclick="applyDashboardFilters()">Terapkan Filter</button>
+        <button class="btn-secondary" onclick="resetDashboardFilters()" style="padding: 0.6rem 1.2rem;">Hari Ini</button>
+      </div>
+
+      <!-- Ringkasan Kartu -->
+      <div class="card-grid">
+        <div class="card">
+          <span class="card-title">Total Transaksi Leads</span>
+          <span id="metric-total-leads" class="card-value">0</span>
+        </div>
+        <div class="card">
+          <span class="card-title">Total Quantity Leads</span>
+          <span id="metric-total-qty" class="card-value">0</span>
+        </div>
+        <div class="card">
+          <span class="card-title">Top Sales Performance</span>
+          <span id="metric-top-sales" class="card-value" style="font-size: 1.5rem; height: 54px; display: flex; align-items: center;">-</span>
+        </div>
+      </div>
+
+      <!-- Analitik Detail -->
+      <div class="analytics-section">
+        <!-- Tabel Ringkasan Harian -->
+        <div class="section-panel" style="grid-column: span 2;">
+          <h2 class="section-title">Ringkasan Analitik Harian</h2>
+          <div style="overflow-x: auto;">
+            <table class="history-table">
+              <thead>
+                <tr>
+                  <th>Tanggal</th>
+                  <th>Total Transaksi</th>
+                  <th>Total Qty</th>
+                  <th>Sales Teraktif</th>
+                </tr>
+              </thead>
+              <tbody id="dashboard-daily-table-body">
+                <!-- Diisi otomatis melalui JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Leaderboard Sales -->
+        <div class="section-panel">
+          <h2 class="section-title">Performa Sales (Qty)</h2>
+          <div id="sales-leaderboard" class="leaderboard-list">
+            <!-- Diisi via JS -->
+          </div>
+        </div>
+
+        <!-- Opsi Sumber Leads -->
+        <div class="section-panel">
+          <h2 class="section-title">Sumber Leads Terbanyak</h2>
+          <div id="sources-leaderboard" class="leaderboard-list">
+            <!-- Diisi via JS -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. PANEL FORM LEADS -->
+    <section id="panel-leads" class="panel">
+      <div class="panel-header">
+        <h1 class="panel-title">
+          Form Rekapitulasi Leads
+          <span>Input data leads customer harian secara instan.</span>
+        </h1>
+      </div>
+
+      <!-- Form Inputs -->
+      <div class="form-container">
+        <form id="form-lead" onsubmit="handleLeadSubmit(event)">
+          <!-- Mode input indicator -->
+          <input type="hidden" id="form-mode" value="create">
+          
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="lead-id">ID Leads (Otomatis)</label>
+              <input type="text" id="lead-id" class="form-control" readonly disabled>
+            </div>
+            <div class="form-group">
+              <label for="lead-date">Tanggal Leads</label>
+              <input type="datetime-local" id="lead-date" class="form-control" required>
+            </div>
+            <div class="form-group">
+              <label for="lead-sales">Nama Sales</label>
+              <select id="lead-sales" class="form-control" required>
+                <option value="">-- Pilih Sales --</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="lead-source">Sumber Leads</label>
+              <select id="lead-source" class="form-control" required>
+                <option value="">-- Pilih Sumber --</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="lead-message">Jenis Pesan</label>
+              <select id="lead-message" class="form-control" required>
+                <option value="">-- Pilih Jenis Pesan --</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="lead-qty">Qty / Jumlah</label>
+              <input type="number" id="lead-qty" class="form-control" min="1" required value="1">
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button type="button" class="btn-secondary" onclick="resetLeadForm()">Batal / Reset</button>
+            <button type="submit" id="btn-submit-lead" class="btn-primary">Simpan Rekap</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Tabel Riwayat leads -->
+      <div class="section-panel" style="background-color: var(--bg-panel);">
+        <div class="table-header-bar">
+          <h2 style="font-family: var(--font-title); font-size: 1.1rem; font-weight: 600;">Riwayat Rekapitulasi Leads</h2>
+          <input type="text" id="search-history" class="table-search-input" placeholder="Cari Sales, ID, atau Sumber..." oninput="filterHistoryTable()">
+        </div>
+        <div style="overflow-x: auto;">
+          <table class="history-table">
+            <thead>
+              <tr>
+                <th>ID Leads</th>
+                <th>Tanggal</th>
+                <th>Sales</th>
+                <th>Sumber Leads</th>
+                <th>Jenis Pesan</th>
+                <th>Qty</th>
+                <th>Status Sync</th>
+                <th style="width: 100px; text-align: center;">Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="history-table-body">
+              <!-- Diisi otomatis via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. PANEL VALIDASI -->
+    <section id="panel-validation" class="panel">
+      <div class="panel-header">
+        <h1 class="panel-title">
+          Validation Panel
+          <span>Kelola daftar pilihan dropdown Sales, Sumber, dan Jenis Pesan.</span>
+        </h1>
+      </div>
+
+      <div class="validation-container">
+        <!-- 1. Nama Sales -->
+        <div class="validation-card">
+          <h2 class="section-title">Nama Sales</h2>
+          <div class="option-input-group">
+            <input type="text" id="input-sales" class="form-control" placeholder="Nama sales baru...">
+            <button class="btn-primary" style="padding: 0.6rem 1.25rem;" onclick="addOption('sales')">Tambah</button>
+          </div>
+          <div id="list-sales" class="option-list">
+            <!-- Diisi otomatis -->
+          </div>
+        </div>
+
+        <!-- 2. Sumber Leads -->
+        <div class="validation-card">
+          <h2 class="section-title">Sumber Leads</h2>
+          <div class="option-input-group">
+            <input type="text" id="input-sources" class="form-control" placeholder="Sumber leads baru...">
+            <button class="btn-primary" style="padding: 0.6rem 1.25rem;" onclick="addOption('sources')">Tambah</button>
+          </div>
+          <div id="list-sources" class="option-list">
+            <!-- Diisi otomatis -->
+          </div>
+        </div>
+
+        <!-- 3. Jenis Pesan -->
+        <div class="validation-card">
+          <h2 class="section-title">Jenis Pesan</h2>
+          <div class="option-input-group">
+            <input type="text" id="input-messages" class="form-control" placeholder="Jenis pesan baru...">
+            <button class="btn-primary" style="padding: 0.6rem 1.25rem;" onclick="addOption('messages')">Tambah</button>
+          </div>
+          <div id="list-messages" class="option-list">
+            <!-- Diisi otomatis -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Konfigurasi URL Google Apps Script -->
+      <div class="settings-section">
+        <h2 class="section-title" style="border: none; margin-bottom: 0.5rem; padding: 0;">Konfigurasi Backend API</h2>
+        <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">
+          Masukkan Web App URL yang Anda dapatkan setelah mendeploy script Google Apps Script backend.
+        </p>
+        <div class="settings-input-group">
+          <input type="url" id="gas-url-input" class="form-control" placeholder="https://script.google.com/macros/s/.../exec">
+          <button class="btn-primary" onclick="saveGasUrl()">Simpan URL</button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Container Notifikasi Toast -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- Memuat library scripts -->
+  <script src="db.js"></script>
+  <script src="sync.js"></script>
+  <script src="app.js"></script>
+
+</body>
+</html>
