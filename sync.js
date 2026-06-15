@@ -259,11 +259,17 @@ class SoviaSync {
       if (!pendingValidationTypes.has('Nama Sales')) {
         await window.soviaDb.saveValidationOptions('Nama Sales', validation.sales || []);
       }
+      if (!pendingValidationTypes.has('Sumber Channel')) {
+        await window.soviaDb.saveValidationOptions('Sumber Channel', validation.channels || []);
+      }
       if (!pendingValidationTypes.has('Sumber Leads')) {
         await window.soviaDb.saveValidationOptions('Sumber Leads', validation.sources || []);
       }
       if (!pendingValidationTypes.has('Jenis Pesan')) {
         await window.soviaDb.saveValidationOptions('Jenis Pesan', validation.messages || []);
+      }
+      if (!pendingValidationTypes.has('Block Loose')) {
+        await window.soviaDb.saveValidationOptions('Block Loose', validation.blocks || []);
       }
     }
   }
