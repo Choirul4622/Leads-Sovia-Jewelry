@@ -675,8 +675,8 @@ function renderDashboard() {
   cardsContainer.innerHTML += `
     <div class="card ${isSemuaActive ? 'active' : ''}" onclick="selectSalesDashboard('Semua Sales')">
       <span class="card-title">Semua Sales (Total)</span>
-      <span class="card-value" style="font-size: 1.85rem;">${totalQty} Qty</span>
-      <span style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">${totalLeadsCount} Transaksi Leads</span>
+      <span class="card-value" style="font-size: 1.85rem;">${totalQty} Leads</span>
+      <span style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">${totalLeadsCount} Recap</span>
     </div>
   `;
 
@@ -687,8 +687,8 @@ function renderDashboard() {
     cardsContainer.innerHTML += `
       <div class="card ${isActive ? 'active' : ''}" onclick="selectSalesDashboard('${salesName}')">
         <span class="card-title">Sales: ${salesName}</span>
-        <span class="card-value" style="font-size: 1.85rem;">${stats.qty} Qty</span>
-        <span style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">${stats.count} Transaksi Leads</span>
+        <span class="card-value" style="font-size: 1.85rem;">${stats.qty} Leads</span>
+        <span style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">${stats.count} Recap</span>
       </div>
     `;
   });
@@ -717,15 +717,15 @@ function renderDashboard() {
       dailyTbody.innerHTML += `
         <tr onclick="selectDashboardDate('${day}')" style="cursor: pointer;">
           <td><strong>${day}</strong></td>
-          <td>${dayData.count} Leads</td>
-          <td>${dayData.qty} Qty</td>
-          <td>${dayTopSales} (${dayTopSalesQty} Qty)</td>
+          <td>${dayData.count} Recap</td>
+          <td>${dayData.qty} Leads</td>
+          <td>${dayTopSales} (${dayTopSalesQty} Leads)</td>
         </tr>
       `;
     });
   }
 
-  // 4. Render Detail Drill-down (Unified Table: Nama Sales -> Sumber Leads -> Jenis Pesan -> Total Qty)
+  // 4. Render Detail Drill-down (Unified Table: Nama Sales -> Sumber Leads -> Jenis Pesan -> Total Leads)
   document.getElementById('drilldown-sales-title').innerText = selectedSalesDashboard;
   
   // Filter leads sesuai dengan sales yang dipilih
@@ -734,7 +734,7 @@ function renderDashboard() {
     : filteredLeads.filter(l => l['Nama Sales'] === selectedSalesDashboard);
 
   const drilldownQty = drilldownLeads.reduce((acc, curr) => acc + (parseInt(curr['Qty'], 10) || 0), 0);
-  document.getElementById('drilldown-sales-qty').innerText = `Total: ${drilldownQty} Qty (${drilldownLeads.length} Leads)`;
+  document.getElementById('drilldown-sales-qty').innerText = `Total: ${drilldownQty} Leads (${drilldownLeads.length} Recap)`;
 
   // Group data by Sales -> Source -> Message Type
   const groups = {};
@@ -815,7 +815,7 @@ function renderDashboard() {
         rowHtml += `<td rowspan="${sourceSpan[rIdx]}" style="vertical-align: top; border-right: 1px solid var(--border-color);">${row.source}</td>`;
       }
       rowHtml += `<td style="border-right: 1px solid var(--border-color);">${row.msg}</td>`;
-      rowHtml += `<td><span style="color: var(--gold-primary); font-weight: 600;">${row.qty} Qty</span></td>`;
+      rowHtml += `<td><span style="color: var(--gold-primary); font-weight: 600;">${row.qty} Leads</span></td>`;
       rowHtml += '</tr>';
       unifiedTbody.innerHTML += rowHtml;
     });
