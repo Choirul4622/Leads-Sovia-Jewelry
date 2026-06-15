@@ -136,11 +136,13 @@ class SoviaDB {
 
       request.onsuccess = () => {
         // Konversi bentuk array object ke object format
-        const result = { sales: [], sources: [], messages: [] };
+        const result = { sales: [], channels: [], sources: [], messages: [], blocks: [] };
         request.result.forEach(item => {
           if (item.type === 'Nama Sales') result.sales = item.values;
+          else if (item.type === 'Sumber Channel') result.channels = item.values;
           else if (item.type === 'Sumber Leads') result.sources = item.values;
           else if (item.type === 'Jenis Pesan') result.messages = item.values;
+          else if (item.type === 'Block Loose') result.blocks = item.values;
         });
 
         resolve(result);
