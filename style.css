@@ -500,7 +500,7 @@ main {
 
 .lead-item-row {
   display: grid;
-  grid-template-columns: 2fr 2fr 1fr 50px;
+  grid-template-columns: 2fr 2fr 2fr 2fr 1.5fr 50px;
   gap: 1rem;
   align-items: flex-end;
   margin-bottom: 1rem;
