@@ -268,8 +268,11 @@ class SoviaSync {
       if (!pendingValidationTypes.has('Jenis Pesan')) {
         await window.soviaDb.saveValidationOptions('Jenis Pesan', validation.messages || []);
       }
-      if (!pendingValidationTypes.has('Block Loose')) {
-        await window.soviaDb.saveValidationOptions('Block Loose', validation.blocks || []);
+      if (!pendingValidationTypes.has('Block Lose')) {
+        await window.soviaDb.saveValidationOptions('Block Lose', validation.blocks || []);
+      }
+      if (!pendingValidationTypes.has('MQL')) {
+        await window.soviaDb.saveValidationOptions('MQL', validation.mql || []);
       }
     }
   }
