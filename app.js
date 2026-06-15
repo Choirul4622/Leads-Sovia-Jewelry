@@ -5,7 +5,7 @@
 
 // State Global Aplikasi
 let currentLeads = [];
-let validationOptions = { sales: [], channels: [], sources: [], messages: [], blocks: [] };
+let validationOptions = { sales: [], channels: [], sources: [], messages: [], blocks: [], mql: [] };
 let syncStatusGlobal = { isOnline: false, isSyncing: false, pendingCount: 0 };
 let selectedSalesDashboard = 'Semua Sales';
 
@@ -210,19 +210,30 @@ function initializeLeadDate() {
 }
 
 /**
- * Menambahkan satu baris item (Sumber Channel, Sumber Leads, Jenis Pesan, Block Loose, Qty) pada form rekapitulasi leads
+ * Fungsi pembantu umum untuk menyembunyikan/menampilkan tombol hapus baris dinamis
  */
-function addLeadItemRow(channelVal = '', sourceVal = '', messageVal = '', blockVal = '', qtyVal = 1) {
+function updateRemoveButtonsVisibility(containerId, rowClass, btnClass) {
+  const rows = document.querySelectorAll(`#${containerId} .${rowClass}`);
+  rows.forEach(row => {
+    const btn = row.querySelector(`.${btnClass}`);
+    if (btn) {
+      if (rows.length <= 1) {
+        btn.style.display = 'none';
+      } else {
+        btn.style.display = 'flex';
+      }
+    }
+  });
+}
+
+/**
+ * Menambahkan satu baris item pada form rekapitulasi leads
+ */
+function addLeadItemRow(sourceVal = '', messageVal = '', qtyVal = 1) {
   const container = document.getElementById('leads-items-container');
   if (!container) return;
 
   const rowId = `lead-item-row-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
-  
-  // Options for dropdowns
-  let channelOptionsHtml = '<option value="">-- Pilih Channel --</option>';
-  (validationOptions.channels || []).forEach(opt => {
-    channelOptionsHtml += `<option value="${opt}" ${opt === channelVal ? 'selected' : ''}>${opt}</option>`;
-  });
 
   let sourceOptionsHtml = '<option value="">-- Pilih Sumber --</option>';
   (validationOptions.sources || []).forEach(opt => {
@@ -234,19 +245,8 @@ function addLeadItemRow(channelVal = '', sourceVal = '', messageVal = '', blockV
     messageOptionsHtml += `<option value="${opt}" ${opt === messageVal ? 'selected' : ''}>${opt}</option>`;
   });
 
-  let blockOptionsHtml = '<option value="">-- Pilih Block/Loose --</option>';
-  (validationOptions.blocks || []).forEach(opt => {
-    blockOptionsHtml += `<option value="${opt}" ${opt === blockVal ? 'selected' : ''}>${opt}</option>`;
-  });
-
   const rowHtml = `
     <div class="lead-item-row" id="${rowId}">
-      <div class="form-group">
-        <label>Sumber Channel</label>
-        <select class="form-control lead-item-channel" required>
-          ${channelOptionsHtml}
-        </select>
-      </div>
       <div class="form-group">
         <label>Sumber Leads</label>
         <select class="form-control lead-item-source" required>
@@ -260,12 +260,6 @@ function addLeadItemRow(channelVal = '', sourceVal = '', messageVal = '', blockV
         </select>
       </div>
       <div class="form-group">
-        <label>Block Loose</label>
-        <select class="form-control lead-item-block" required>
-          ${blockOptionsHtml}
-        </select>
-      </div>
-      <div class="form-group">
         <label>Qty / Jumlah</label>
         <input type="number" class="form-control lead-item-qty" min="1" required value="${qtyVal}">
       </div>
@@ -275,7 +269,7 @@ function addLeadItemRow(channelVal = '', sourceVal = '', messageVal = '', blockV
     </div>
   `;
   container.insertAdjacentHTML('beforeend', rowHtml);
-  updateRemoveButtonsVisibility();
+  updateRemoveButtonsVisibility('leads-items-container', 'lead-item-row', 'btn-remove-item-row');
 }
 
 /**
@@ -286,24 +280,99 @@ function removeLeadItemRow(rowId) {
   if (row) {
     row.remove();
   }
-  updateRemoveButtonsVisibility();
+  updateRemoveButtonsVisibility('leads-items-container', 'lead-item-row', 'btn-remove-item-row');
 }
 
 /**
- * Menampilkan/menyembunyikan tombol hapus baris tergantung jumlah baris yang ada
+ * Menambahkan satu baris item Chat Terhenti
  */
-function updateRemoveButtonsVisibility() {
-  const rows = document.querySelectorAll('.lead-item-row');
-  rows.forEach(row => {
-    const btn = row.querySelector('.btn-remove-item-row');
-    if (btn) {
-      if (rows.length <= 1) {
-        btn.style.display = 'none';
-      } else {
-        btn.style.display = 'flex';
-      }
-    }
+function addTerhentiRow(blockVal = '', qtyVal = 1) {
+  const container = document.getElementById('terhenti-items-container');
+  if (!container) return;
+
+  const rowId = `terhenti-item-row-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+
+  let blockOptionsHtml = '<option value="">-- Pilih Block/Lose --</option>';
+  (validationOptions.blocks || []).forEach(opt => {
+    blockOptionsHtml += `<option value="${opt}" ${opt === blockVal ? 'selected' : ''}>${opt}</option>`;
   });
+
+  const rowHtml = `
+    <div class="terhenti-item-row" id="${rowId}">
+      <div class="form-group">
+        <label>Block Lose</label>
+        <select class="form-control terhenti-item-block" required>
+          ${blockOptionsHtml}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Qty / Jumlah</label>
+        <input type="number" class="form-control terhenti-item-qty" min="1" required value="${qtyVal}">
+      </div>
+      <button type="button" class="btn-action delete btn-remove-terhenti-row" onclick="removeTerhentiRow('${rowId}')" style="height: 42px; width: 42px; display: flex; align-items: center; justify-content: center; background-color: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 6px;" title="Hapus Baris">
+        <svg viewBox="0 0 24 24" style="width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2;"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+      </button>
+    </div>
+  `;
+  container.insertAdjacentHTML('beforeend', rowHtml);
+  updateRemoveButtonsVisibility('terhenti-items-container', 'terhenti-item-row', 'btn-remove-terhenti-row');
+}
+
+/**
+ * Menghapus baris item Chat Terhenti
+ */
+function removeTerhentiRow(rowId) {
+  const row = document.getElementById(rowId);
+  if (row) {
+    row.remove();
+  }
+  updateRemoveButtonsVisibility('terhenti-items-container', 'terhenti-item-row', 'btn-remove-terhenti-row');
+}
+
+/**
+ * Menambahkan satu baris item Chat Lama
+ */
+function addLamaRow(mqlVal = '', qtyVal = 1) {
+  const container = document.getElementById('lama-items-container');
+  if (!container) return;
+
+  const rowId = `lama-item-row-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+
+  let mqlOptionsHtml = '<option value="">-- Pilih MQL --</option>';
+  (validationOptions.mql || []).forEach(opt => {
+    mqlOptionsHtml += `<option value="${opt}" ${opt === mqlVal ? 'selected' : ''}>${opt}</option>`;
+  });
+
+  const rowHtml = `
+    <div class="lama-item-row" id="${rowId}">
+      <div class="form-group">
+        <label>MQL</label>
+        <select class="form-control lama-item-mql" required>
+          ${mqlOptionsHtml}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Qty / Jumlah</label>
+        <input type="number" class="form-control lama-item-qty" min="1" required value="${qtyVal}">
+      </div>
+      <button type="button" class="btn-action delete btn-remove-lama-row" onclick="removeLamaRow('${rowId}')" style="height: 42px; width: 42px; display: flex; align-items: center; justify-content: center; background-color: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 6px;" title="Hapus Baris">
+        <svg viewBox="0 0 24 24" style="width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2;"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+      </button>
+    </div>
+  `;
+  container.insertAdjacentHTML('beforeend', rowHtml);
+  updateRemoveButtonsVisibility('lama-items-container', 'lama-item-row', 'btn-remove-lama-row');
+}
+
+/**
+ * Menghapus baris item Chat Lama
+ */
+function removeLamaRow(rowId) {
+  const row = document.getElementById(rowId);
+  if (row) {
+    row.remove();
+  }
+  updateRemoveButtonsVisibility('lama-items-container', 'lama-item-row', 'btn-remove-lama-row');
 }
 
 /**
@@ -311,25 +380,22 @@ function updateRemoveButtonsVisibility() {
  */
 function renderDropdownSelectors() {
   const salesDropdown = document.getElementById('lead-sales');
+  const channelDropdown = document.getElementById('lead-channel');
 
   // Bersihkan opsi lama, sisakan placeholder
   salesDropdown.innerHTML = '<option value="">-- Pilih Sales --</option>';
+  channelDropdown.innerHTML = '<option value="">-- Pilih Channel --</option>';
 
   // Isi dengan data lokal
   (validationOptions.sales || []).forEach(opt => {
     salesDropdown.innerHTML += `<option value="${opt}">${opt}</option>`;
   });
 
-  // Isi dropdown di baris dynamic item yang ada
-  const channelDropdowns = document.querySelectorAll('.lead-item-channel');
-  channelDropdowns.forEach(dropdown => {
-    const currentVal = dropdown.value;
-    dropdown.innerHTML = '<option value="">-- Pilih Channel --</option>';
-    (validationOptions.channels || []).forEach(opt => {
-      dropdown.innerHTML += `<option value="${opt}" ${opt === currentVal ? 'selected' : ''}>${opt}</option>`;
-    });
+  (validationOptions.channels || []).forEach(opt => {
+    channelDropdown.innerHTML += `<option value="${opt}">${opt}</option>`;
   });
 
+  // Isi dropdown di baris dynamic item yang ada (Rekap)
   const sourceDropdowns = document.querySelectorAll('.lead-item-source');
   sourceDropdowns.forEach(dropdown => {
     const currentVal = dropdown.value;
@@ -348,11 +414,22 @@ function renderDropdownSelectors() {
     });
   });
 
-  const blockDropdowns = document.querySelectorAll('.lead-item-block');
+  // Isi dropdown Block Lose di Chat Terhenti
+  const blockDropdowns = document.querySelectorAll('.terhenti-item-block');
   blockDropdowns.forEach(dropdown => {
     const currentVal = dropdown.value;
-    dropdown.innerHTML = '<option value="">-- Pilih Block/Loose --</option>';
+    dropdown.innerHTML = '<option value="">-- Pilih Block/Lose --</option>';
     (validationOptions.blocks || []).forEach(opt => {
+      dropdown.innerHTML += `<option value="${opt}" ${opt === currentVal ? 'selected' : ''}>${opt}</option>`;
+    });
+  });
+
+  // Isi dropdown MQL di Chat Lama
+  const mqlDropdowns = document.querySelectorAll('.lama-item-mql');
+  mqlDropdowns.forEach(dropdown => {
+    const currentVal = dropdown.value;
+    dropdown.innerHTML = '<option value="">-- Pilih MQL --</option>';
+    (validationOptions.mql || []).forEach(opt => {
       dropdown.innerHTML += `<option value="${opt}" ${opt === currentVal ? 'selected' : ''}>${opt}</option>`;
     });
   });
@@ -371,35 +448,95 @@ async function handleLeadSubmit(event) {
   const inputDateTime = document.getElementById('lead-date').value; // format: 2026-06-15T11:26
   const formattedDate = inputDateTime.replace('T', ' ') + ':00';
   const salesName = document.getElementById('lead-sales').value;
+  const channelName = document.getElementById('lead-channel').value;
 
   if (mode === 'create') {
-    const itemRows = document.querySelectorAll('.lead-item-row');
-    if (itemRows.length === 0) {
-      showToast('Harap tambahkan setidaknya satu item rekap!', 'warning');
+    const rowsToSave = [];
+
+    // 1. Rekapitulasi Leads
+    const rekapRows = document.querySelectorAll('.lead-item-row');
+    rekapRows.forEach((row, i) => {
+      const source = row.querySelector('.lead-item-source').value;
+      const message = row.querySelector('.lead-item-message').value;
+      const qty = parseInt(row.querySelector('.lead-item-qty').value, 10) || 1;
+      if (source && message) {
+        rowsToSave.push({
+          type: 'rekap',
+          tempId: `${idLeads}-R${i + 1}`,
+          data: {
+            'Sumber Leads': source,
+            'Jenis Pesan': message,
+            'Block Lose': '-',
+            'MQL': '-',
+            'Qty': qty
+          }
+        });
+      }
+    });
+
+    // 2. Chat Terhenti
+    const terhentiRows = document.querySelectorAll('.terhenti-item-row');
+    terhentiRows.forEach((row, i) => {
+      const block = row.querySelector('.terhenti-item-block').value;
+      const qty = parseInt(row.querySelector('.terhenti-item-qty').value, 10) || 1;
+      if (block) {
+        rowsToSave.push({
+          type: 'terhenti',
+          tempId: `${idLeads}-T${i + 1}`,
+          data: {
+            'Sumber Leads': '-',
+            'Jenis Pesan': '-',
+            'Block Lose': block,
+            'MQL': '-',
+            'Qty': qty
+          }
+        });
+      }
+    });
+
+    // 3. Chat Lama
+    const lamaRows = document.querySelectorAll('.lama-item-row');
+    lamaRows.forEach((row, i) => {
+      const mql = row.querySelector('.lama-item-mql').value;
+      const qty = parseInt(row.querySelector('.lama-item-qty').value, 10) || 1;
+      if (mql) {
+        rowsToSave.push({
+          type: 'lama',
+          tempId: `${idLeads}-L${i + 1}`,
+          data: {
+            'Sumber Leads': '-',
+            'Jenis Pesan': '-',
+            'Block Lose': '-',
+            'MQL': mql,
+            'Qty': qty
+          }
+        });
+      }
+    });
+
+    if (rowsToSave.length === 0) {
+      showToast('Harap tambahkan setidaknya satu item rekap, chat terhenti, atau chat lama!', 'warning');
       return;
     }
 
-    // Simpan masing-masing baris item rekapitulasi
-    for (let i = 0; i < itemRows.length; i++) {
-      const row = itemRows[i];
-      const channel = row.querySelector('.lead-item-channel').value;
-      const source = row.querySelector('.lead-item-source').value;
-      const message = row.querySelector('.lead-item-message').value;
-      const block = row.querySelector('.lead-item-block').value;
-      const qty = parseInt(row.querySelector('.lead-item-qty').value, 10) || 1;
+    // Jika hanya ada 1 item dari seluruh kategori, pertahankan base ID asli
+    if (rowsToSave.length === 1) {
+      rowsToSave[0].tempId = idLeads;
+    }
 
-      // Suffix ID jika ada lebih dari 1 item, pertahankan base ID jika hanya ada 1 item
-      const itemLeadId = itemRows.length > 1 ? `${idLeads}-${i + 1}` : idLeads;
-
+    // Simpan masing-masing baris item rekapitulasi ke DB lokal & server queue
+    for (let i = 0; i < rowsToSave.length; i++) {
+      const item = rowsToSave[i];
       const leadData = {
-        'ID Leads': itemLeadId,
+        'ID Leads': item.tempId,
         'Tanggal Leads': formattedDate,
         'Nama Sales': salesName,
-        'Sumber Channel': channel,
-        'Sumber Leads': source,
-        'Jenis Pesan': message,
-        'Block Loose': block,
-        'Qty': qty,
+        'Sumber Channel': channelName,
+        'Sumber Leads': item.data['Sumber Leads'],
+        'Jenis Pesan': item.data['Jenis Pesan'],
+        'Block Lose': item.data['Block Lose'],
+        'MQL': item.data['MQL'],
+        'Qty': item.data['Qty'],
         'Timestamp Created': new Date().toISOString(),
         'Timestamp Updated': new Date().toISOString(),
         'Status': 'Active'
@@ -409,28 +546,44 @@ async function handleLeadSubmit(event) {
       await window.soviaDb.saveLead(leadData);
 
       // 2. Antrekan ke Sync Queue
-      await window.soviaDb.addToQueue('create_lead', itemLeadId, null, leadData);
+      await window.soviaDb.addToQueue('create_lead', item.tempId, null, leadData);
     }
 
-    showToast(`Berhasil menyimpan ${itemRows.length} rekap leads secara lokal.`, 'success');
+    showToast(`Berhasil menyimpan ${rowsToSave.length} rekap leads secara lokal.`, 'success');
 
   } else {
     // Edit mode (hanya 1 baris item terpilih yang di-update)
-    const itemRow = document.querySelector('.lead-item-row');
-    const channel = itemRow.querySelector('.lead-item-channel').value;
-    const source = itemRow.querySelector('.lead-item-source').value;
-    const message = itemRow.querySelector('.lead-item-message').value;
-    const block = itemRow.querySelector('.lead-item-block').value;
-    const qty = parseInt(itemRow.querySelector('.lead-item-qty').value, 10) || 1;
+    let source = '-';
+    let message = '-';
+    let block = '-';
+    let mql = '-';
+    let qty = 1;
+
+    const rekapRow = document.querySelector('.lead-item-row');
+    const terhentiRow = document.querySelector('.terhenti-item-row');
+    const lamaRow = document.querySelector('.lama-item-row');
+
+    if (rekapRow && rekapRow.style.display !== 'none') {
+      source = rekapRow.querySelector('.lead-item-source').value;
+      message = rekapRow.querySelector('.lead-item-message').value;
+      qty = parseInt(rekapRow.querySelector('.lead-item-qty').value, 10) || 1;
+    } else if (terhentiRow && terhentiRow.style.display !== 'none') {
+      block = terhentiRow.querySelector('.terhenti-item-block').value;
+      qty = parseInt(terhentiRow.querySelector('.terhenti-item-qty').value, 10) || 1;
+    } else if (lamaRow && lamaRow.style.display !== 'none') {
+      mql = lamaRow.querySelector('.lama-item-mql').value;
+      qty = parseInt(lamaRow.querySelector('.lama-item-qty').value, 10) || 1;
+    }
 
     const leadData = {
       'ID Leads': idLeads,
       'Tanggal Leads': formattedDate,
       'Nama Sales': salesName,
-      'Sumber Channel': channel,
+      'Sumber Channel': channelName,
       'Sumber Leads': source,
       'Jenis Pesan': message,
-      'Block Loose': block,
+      'Block Lose': block,
+      'MQL': mql,
       'Qty': qty,
       'Timestamp Created': '', // Biarkan server tetap mempertahankan waktu pembuatan asli
       'Timestamp Updated': new Date().toISOString(),
@@ -476,19 +629,46 @@ async function editLead(leadId) {
   document.getElementById('lead-date').value = cleanDate;
   
   document.getElementById('lead-sales').value = lead['Nama Sales'];
+  document.getElementById('lead-channel').value = lead['Sumber Channel'] || '';
 
-  // Kosongkan item list lama dan pasang 1 baris item dengan nilai lead
-  const container = document.getElementById('leads-items-container');
-  if (container) {
-    container.innerHTML = '';
-  }
-  addLeadItemRow(lead['Sumber Channel'] || '', lead['Sumber Leads'], lead['Jenis Pesan'], lead['Block Loose'] || '', lead['Qty']);
+  // Dapatkan element section dan container
+  const rekapSection = document.getElementById('leads-items-container').parentElement;
+  const terhentiSection = document.getElementById('terhenti-items-container').parentElement;
+  const lamaSection = document.getElementById('lama-items-container').parentElement;
 
-  // Sembunyikan tombol "Tambah Baris" saat mode edit
-  const addBtn = document.getElementById('btn-add-item-row');
-  if (addBtn) {
-    addBtn.style.display = 'none';
+  // Bersihkan input container terlebih dahulu
+  document.getElementById('leads-items-container').innerHTML = '';
+  document.getElementById('terhenti-items-container').innerHTML = '';
+  document.getElementById('lama-items-container').innerHTML = '';
+
+  // Deteksi jenis data lead berdasarkan propertinya
+  const hasBlock = lead['Block Lose'] && lead['Block Lose'] !== '-';
+  const hasMQL = lead['MQL'] && lead['MQL'] !== '-';
+
+  if (hasBlock) {
+    // Tampilkan hanya bagian input Chat Terhenti
+    rekapSection.style.display = 'none';
+    terhentiSection.style.display = 'block';
+    lamaSection.style.display = 'none';
+    addTerhentiRow(lead['Block Lose'], lead['Qty']);
+  } else if (hasMQL) {
+    // Tampilkan hanya bagian input Chat Lama
+    rekapSection.style.display = 'none';
+    terhentiSection.style.display = 'none';
+    lamaSection.style.display = 'block';
+    addLamaRow(lead['MQL'], lead['Qty']);
+  } else {
+    // Tampilkan hanya bagian input Rekapitulasi Leads
+    rekapSection.style.display = 'block';
+    terhentiSection.style.display = 'none';
+    lamaSection.style.display = 'none';
+    addLeadItemRow(lead['Sumber Leads'], lead['Jenis Pesan'], lead['Qty']);
   }
+
+  // Sembunyikan semua tombol "Tambah Baris" saat mode edit
+  document.getElementById('btn-add-item-row').style.display = 'none';
+  document.getElementById('btn-add-terhenti-row').style.display = 'none';
+  document.getElementById('btn-add-lama-row').style.display = 'none';
 
   // Ganti Tulisan Tombol
   document.getElementById('btn-submit-lead').innerText = 'Perbarui Rekap';
@@ -528,19 +708,31 @@ function resetLeadForm() {
   initializeLeadDate();
   
   document.getElementById('lead-sales').value = '';
+  document.getElementById('lead-channel').value = '';
 
-  // Kosongkan item list lama dan pasang 1 baris kosong awal
-  const container = document.getElementById('leads-items-container');
-  if (container) {
-    container.innerHTML = '';
-  }
+  // Dapatkan section input
+  const rekapSection = document.getElementById('leads-items-container').parentElement;
+  const terhentiSection = document.getElementById('terhenti-items-container').parentElement;
+  const lamaSection = document.getElementById('lama-items-container').parentElement;
+
+  // Tampilkan kembali semua kontainer item dinamis
+  rekapSection.style.display = 'block';
+  terhentiSection.style.display = 'block';
+  lamaSection.style.display = 'block';
+
+  // Bersihkan kontainer dan pasang masing-masing 1 baris kosong awal
+  document.getElementById('leads-items-container').innerHTML = '';
+  document.getElementById('terhenti-items-container').innerHTML = '';
+  document.getElementById('lama-items-container').innerHTML = '';
+
   addLeadItemRow();
+  addTerhentiRow();
+  addLamaRow();
 
-  // Tampilkan kembali tombol "Tambah Baris"
-  const addBtn = document.getElementById('btn-add-item-row');
-  if (addBtn) {
-    addBtn.style.display = 'flex';
-  }
+  // Tampilkan kembali semua tombol "Tambah Baris"
+  document.getElementById('btn-add-item-row').style.display = 'flex';
+  document.getElementById('btn-add-terhenti-row').style.display = 'flex';
+  document.getElementById('btn-add-lama-row').style.display = 'flex';
 
   const btn = document.getElementById('btn-submit-lead');
   if (btn) {
@@ -557,7 +749,7 @@ async function renderHistoryTable(leadsToRender = currentLeads) {
   tbody.innerHTML = '';
 
   if (leadsToRender.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="10" class="no-data-msg">Tidak ada data rekapitulasi leads ditemukan.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="11" class="no-data-msg">Tidak ada data rekapitulasi leads ditemukan.</td></tr>`;
     return;
   }
 
@@ -586,9 +778,10 @@ async function renderHistoryTable(leadsToRender = currentLeads) {
         <td>${lead['Tanggal Leads']}</td>
         <td>${lead['Nama Sales']}</td>
         <td>${lead['Sumber Channel'] || '-'}</td>
-        <td>${lead['Sumber Leads']}</td>
-        <td>${lead['Jenis Pesan']}</td>
-        <td>${lead['Block Loose'] || '-'}</td>
+        <td>${lead['Sumber Leads'] || '-'}</td>
+        <td>${lead['Jenis Pesan'] || '-'}</td>
+        <td>${lead['Block Lose'] || '-'}</td>
+        <td>${lead['MQL'] || '-'}</td>
         <td>${lead['Qty']}</td>
         <td>${badgeHtml}</td>
         <td style="text-align: center;">
@@ -622,9 +815,10 @@ function filterHistoryTable() {
       lead['ID Leads'].toLowerCase().includes(query) ||
       lead['Nama Sales'].toLowerCase().includes(query) ||
       (lead['Sumber Channel'] || '').toLowerCase().includes(query) ||
-      lead['Sumber Leads'].toLowerCase().includes(query) ||
-      lead['Jenis Pesan'].toLowerCase().includes(query) ||
-      (lead['Block Loose'] || '').toLowerCase().includes(query) ||
+      (lead['Sumber Leads'] || '').toLowerCase().includes(query) ||
+      (lead['Jenis Pesan'] || '').toLowerCase().includes(query) ||
+      (lead['Block Lose'] || '').toLowerCase().includes(query) ||
+      (lead['MQL'] || '').toLowerCase().includes(query) ||
       lead['Tanggal Leads'].toLowerCase().includes(query)
     );
   });
@@ -645,6 +839,7 @@ function renderValidationLists() {
   renderOptionList('sources', validationOptions.sources);
   renderOptionList('messages', validationOptions.messages);
   renderOptionList('blocks', validationOptions.blocks);
+  renderOptionList('mql', validationOptions.mql);
 }
 
 /**
@@ -742,7 +937,8 @@ function getDbType(type) {
   if (type === 'channels') return 'Sumber Channel';
   if (type === 'sources') return 'Sumber Leads';
   if (type === 'messages') return 'Jenis Pesan';
-  if (type === 'blocks') return 'Block Loose';
+  if (type === 'blocks') return 'Block Lose';
+  if (type === 'mql') return 'MQL';
   return '';
 }
 
@@ -753,6 +949,7 @@ function getOptionArray(type) {
   if (type === 'sources') return [...validationOptions.sources];
   if (type === 'messages') return [...validationOptions.messages];
   if (type === 'blocks') return [...validationOptions.blocks];
+  if (type === 'mql') return [...validationOptions.mql];
   return [];
 }
 
@@ -929,32 +1126,30 @@ function renderDashboard() {
     });
   }
 
-  // 4. Render Detail Drill-down (Unified Table: Nama Sales -> Sumber Channel -> Sumber Leads -> Jenis Pesan -> Block Loose -> Total Leads)
+  // 4. Render Detail Drill-down Rekapitulasi Leads (Nama Sales -> Sumber Channel -> Sumber Leads -> Jenis Pesan -> Total Leads)
   document.getElementById('drilldown-sales-title').innerText = selectedSalesDashboard;
   
-  // Filter leads sesuai dengan sales yang dipilih
+  // Filter leads rekap sesuai dengan sales terpilih (yang bukan chat terhenti / chat lama)
   const drilldownLeads = selectedSalesDashboard === 'Semua Sales'
-    ? filteredLeads
-    : filteredLeads.filter(l => l['Nama Sales'] === selectedSalesDashboard);
+    ? filteredLeads.filter(l => l['Sumber Leads'] && l['Sumber Leads'] !== '-' && l['Jenis Pesan'] && l['Jenis Pesan'] !== '-')
+    : filteredLeads.filter(l => l['Nama Sales'] === selectedSalesDashboard && l['Sumber Leads'] && l['Sumber Leads'] !== '-' && l['Jenis Pesan'] && l['Jenis Pesan'] !== '-');
 
   const drilldownQty = drilldownLeads.reduce((acc, curr) => acc + (parseInt(curr['Qty'], 10) || 0), 0);
   document.getElementById('drilldown-sales-qty').innerText = `Total: ${drilldownQty} Leads (${drilldownLeads.length} Recap)`;
 
-  // Group data by Sales -> Channel -> Source -> Message Type -> Block Loose
+  // Group data by Sales -> Channel -> Source -> Message Type
   const groups = {};
   drilldownLeads.forEach(lead => {
     const sales = lead['Nama Sales'] || 'Tidak Diketahui';
     const channel = lead['Sumber Channel'] || 'Tidak Diketahui';
     const source = lead['Sumber Leads'] || 'Tidak Diketahui';
     const msg = lead['Jenis Pesan'] || 'Tidak Diketahui';
-    const block = lead['Block Loose'] || 'Tidak Diketahui';
     const qty = parseInt(lead['Qty'], 10) || 0;
     
     if (!groups[sales]) groups[sales] = {};
     if (!groups[sales][channel]) groups[sales][channel] = {};
     if (!groups[sales][channel][source]) groups[sales][channel][source] = {};
-    if (!groups[sales][channel][source][msg]) groups[sales][channel][source][msg] = {};
-    groups[sales][channel][source][msg][block] = (groups[sales][channel][source][msg][block] || 0) + qty;
+    groups[sales][channel][source][msg] = (groups[sales][channel][source][msg] || 0) + qty;
   });
 
   // Flatten the groups to a list of rows
@@ -967,27 +1162,22 @@ function renderDashboard() {
       sortedSourceKeys.forEach(source => {
         const sortedMsgKeys = Object.keys(groups[sales][channel][source]).sort();
         sortedMsgKeys.forEach(msg => {
-          const sortedBlockKeys = Object.keys(groups[sales][channel][source][msg]).sort();
-          sortedBlockKeys.forEach(block => {
-            rows.push({
-              sales,
-              channel,
-              source,
-              msg,
-              block,
-              qty: groups[sales][channel][source][msg][block]
-            });
+          rows.push({
+            sales,
+            channel,
+            source,
+            msg,
+            qty: groups[sales][channel][source][msg]
           });
         });
       });
     });
   });
 
-  // Pre-calculate rowspan counts
+  // Pre-calculate rowspan counts untuk tabel rekap utama
   const salesSpan = [];
   const channelSpan = [];
   const sourceSpan = [];
-  const msgSpan = [];
 
   let idx = 0;
   while (idx < rows.length) {
@@ -1024,36 +1214,19 @@ function renderDashboard() {
         for (let k = sourceStart + 1; k < sourceEnd; k++) {
           sourceSpan[k] = 0;
         }
-        
-        let msgStart = sourceStart;
-        while (msgStart < sourceEnd) {
-          let msgEnd = msgStart;
-          while (msgEnd < sourceEnd && rows[msgEnd].msg === rows[msgStart].msg) {
-            msgEnd++;
-          }
-          const msgCount = msgEnd - msgStart;
-          msgSpan[msgStart] = msgCount;
-          for (let k = msgStart + 1; k < msgEnd; k++) {
-            msgSpan[k] = 0;
-          }
-          msgStart = msgEnd;
-        }
-        
         sourceStart = sourceEnd;
       }
-      
       channelStart = channelEnd;
     }
-    
     idx = nextSalesIdx;
   }
 
-  // Render the table
+  // Render the unified table rekap
   const unifiedTbody = document.getElementById('drilldown-unified-tbody');
   unifiedTbody.innerHTML = '';
 
   if (rows.length === 0) {
-    unifiedTbody.innerHTML = `<tr><td colspan="6" class="no-data-msg">Tidak ada data untuk kombinasi analitik ini.</td></tr>`;
+    unifiedTbody.innerHTML = `<tr><td colspan="5" class="no-data-msg">Tidak ada data rekapitulasi leads untuk range ini.</td></tr>`;
   } else {
     rows.forEach((row, rIdx) => {
       let rowHtml = '<tr>';
@@ -1066,13 +1239,184 @@ function renderDashboard() {
       if (sourceSpan[rIdx] > 0) {
         rowHtml += `<td rowspan="${sourceSpan[rIdx]}" style="vertical-align: top; border-right: 1px solid var(--border-color);">${row.source}</td>`;
       }
-      if (msgSpan[rIdx] > 0) {
-        rowHtml += `<td rowspan="${msgSpan[rIdx]}" style="vertical-align: top; border-right: 1px solid var(--border-color);">${row.msg}</td>`;
+      rowHtml += `<td style="border-right: 1px solid var(--border-color);">${row.msg}</td>`;
+      rowHtml += `<td><span style="color: var(--gold-primary); font-weight: 600;">${row.qty} Leads</span></td>`;
+      rowHtml += '</tr>';
+      unifiedTbody.innerHTML += rowHtml;
+    });
+  }
+
+  // 5. Render Filter Bertingkat Chat Terhenti (Nama Sales -> Sumber Channel -> Block Lose -> Total Leads)
+  document.getElementById('drilldown-terhenti-title').innerText = selectedSalesDashboard;
+  
+  const terhentiLeads = selectedSalesDashboard === 'Semua Sales'
+    ? filteredLeads.filter(l => l['Block Lose'] && l['Block Lose'] !== '-')
+    : filteredLeads.filter(l => l['Nama Sales'] === selectedSalesDashboard && l['Block Lose'] && l['Block Lose'] !== '-');
+
+  const groupsTerhenti = {};
+  terhentiLeads.forEach(lead => {
+    const sales = lead['Nama Sales'] || 'Tidak Diketahui';
+    const channel = lead['Sumber Channel'] || 'Tidak Diketahui';
+    const block = lead['Block Lose'] || 'Tidak Diketahui';
+    const qty = parseInt(lead['Qty'], 10) || 0;
+    
+    if (!groupsTerhenti[sales]) groupsTerhenti[sales] = {};
+    if (!groupsTerhenti[sales][channel]) groupsTerhenti[sales][channel] = {};
+    groupsTerhenti[sales][channel][block] = (groupsTerhenti[sales][channel][block] || 0) + qty;
+  });
+
+  const rowsTerhenti = [];
+  const sortedSalesTerhenti = Object.keys(groupsTerhenti).sort();
+  sortedSalesTerhenti.forEach(sales => {
+    const sortedChannelTerhenti = Object.keys(groupsTerhenti[sales]).sort();
+    sortedChannelTerhenti.forEach(channel => {
+      const sortedBlockTerhenti = Object.keys(groupsTerhenti[sales][channel]).sort();
+      sortedBlockTerhenti.forEach(block => {
+        rowsTerhenti.push({
+          sales,
+          channel,
+          block,
+          qty: groupsTerhenti[sales][channel][block]
+        });
+      });
+    });
+  });
+
+  // Hitung rowspan untuk tabel terhenti
+  const salesSpanTerhenti = [];
+  const channelSpanTerhenti = [];
+
+  let idxT = 0;
+  while (idxT < rowsTerhenti.length) {
+    let nextSalesIdx = idxT;
+    while (nextSalesIdx < rowsTerhenti.length && rowsTerhenti[nextSalesIdx].sales === rowsTerhenti[idxT].sales) {
+      nextSalesIdx++;
+    }
+    salesSpanTerhenti[idxT] = nextSalesIdx - idxT;
+    for (let k = idxT + 1; k < nextSalesIdx; k++) {
+      salesSpanTerhenti[k] = 0;
+    }
+    
+    let channelStart = idxT;
+    while (channelStart < nextSalesIdx) {
+      let channelEnd = channelStart;
+      while (channelEnd < nextSalesIdx && rowsTerhenti[channelEnd].channel === rowsTerhenti[channelStart].channel) {
+        channelEnd++;
+      }
+      channelSpanTerhenti[channelStart] = channelEnd - channelStart;
+      for (let k = channelStart + 1; k < channelEnd; k++) {
+        channelSpanTerhenti[k] = 0;
+      }
+      channelStart = channelEnd;
+    }
+    idxT = nextSalesIdx;
+  }
+
+  const terhentiTbody = document.getElementById('drilldown-terhenti-tbody');
+  terhentiTbody.innerHTML = '';
+
+  if (rowsTerhenti.length === 0) {
+    terhentiTbody.innerHTML = `<tr><td colspan="4" class="no-data-msg">Tidak ada data chat terhenti untuk range ini.</td></tr>`;
+  } else {
+    rowsTerhenti.forEach((row, rIdx) => {
+      let rowHtml = '<tr>';
+      if (salesSpanTerhenti[rIdx] > 0) {
+        rowHtml += `<td rowspan="${salesSpanTerhenti[rIdx]}" style="vertical-align: top; border-right: 1px solid var(--border-color);"><strong>${row.sales}</strong></td>`;
+      }
+      if (channelSpanTerhenti[rIdx] > 0) {
+        rowHtml += `<td rowspan="${channelSpanTerhenti[rIdx]}" style="vertical-align: top; border-right: 1px solid var(--border-color);">${row.channel}</td>`;
       }
       rowHtml += `<td style="border-right: 1px solid var(--border-color);">${row.block}</td>`;
       rowHtml += `<td><span style="color: var(--gold-primary); font-weight: 600;">${row.qty} Leads</span></td>`;
       rowHtml += '</tr>';
-      unifiedTbody.innerHTML += rowHtml;
+      terhentiTbody.innerHTML += rowHtml;
+    });
+  }
+
+  // 6. Render Filter Bertingkat Chat Lama (Nama Sales -> Sumber Channel -> MQL -> Total Leads)
+  document.getElementById('drilldown-lama-title').innerText = selectedSalesDashboard;
+  
+  const lamaLeads = selectedSalesDashboard === 'Semua Sales'
+    ? filteredLeads.filter(l => l['MQL'] && l['MQL'] !== '-')
+    : filteredLeads.filter(l => l['Nama Sales'] === selectedSalesDashboard && l['MQL'] && l['MQL'] !== '-');
+
+  const groupsLama = {};
+  lamaLeads.forEach(lead => {
+    const sales = lead['Nama Sales'] || 'Tidak Diketahui';
+    const channel = lead['Sumber Channel'] || 'Tidak Diketahui';
+    const mql = lead['MQL'] || 'Tidak Diketahui';
+    const qty = parseInt(lead['Qty'], 10) || 0;
+    
+    if (!groupsLama[sales]) groupsLama[sales] = {};
+    if (!groupsLama[sales][channel]) groupsLama[sales][channel] = {};
+    groupsLama[sales][channel][mql] = (groupsLama[sales][channel][mql] || 0) + qty;
+  });
+
+  const rowsLama = [];
+  const sortedSalesLama = Object.keys(groupsLama).sort();
+  sortedSalesLama.forEach(sales => {
+    const sortedChannelLama = Object.keys(groupsLama[sales]).sort();
+    sortedChannelLama.forEach(channel => {
+      const sortedMqlLama = Object.keys(groupsLama[sales][channel]).sort();
+      sortedMqlLama.forEach(mql => {
+        rowsLama.push({
+          sales,
+          channel,
+          mql,
+          qty: groupsLama[sales][channel][mql]
+        });
+      });
+    });
+  });
+
+  // Hitung rowspan untuk tabel lama
+  const salesSpanLama = [];
+  const channelSpanLama = [];
+
+  let idxL = 0;
+  while (idxL < rowsLama.length) {
+    let nextSalesIdx = idxL;
+    while (nextSalesIdx < rowsLama.length && rowsLama[nextSalesIdx].sales === rowsLama[idxL].sales) {
+      nextSalesIdx++;
+    }
+    salesSpanLama[idxL] = nextSalesIdx - idxL;
+    for (let k = idxL + 1; k < nextSalesIdx; k++) {
+      salesSpanLama[k] = 0;
+    }
+    
+    let channelStart = idxL;
+    while (channelStart < nextSalesIdx) {
+      let channelEnd = channelStart;
+      while (channelEnd < nextSalesIdx && rowsLama[channelEnd].channel === rowsLama[channelStart].channel) {
+        channelEnd++;
+      }
+      channelSpanLama[channelStart] = channelEnd - channelStart;
+      for (let k = channelStart + 1; k < channelEnd; k++) {
+        channelSpanLama[k] = 0;
+      }
+      channelStart = channelEnd;
+    }
+    idxL = nextSalesIdx;
+  }
+
+  const lamaTbody = document.getElementById('drilldown-lama-tbody');
+  lamaTbody.innerHTML = '';
+
+  if (rowsLama.length === 0) {
+    lamaTbody.innerHTML = `<tr><td colspan="4" class="no-data-msg">Tidak ada data chat lama untuk range ini.</td></tr>`;
+  } else {
+    rowsLama.forEach((row, rIdx) => {
+      let rowHtml = '<tr>';
+      if (salesSpanLama[rIdx] > 0) {
+        rowHtml += `<td rowspan="${salesSpanLama[rIdx]}" style="vertical-align: top; border-right: 1px solid var(--border-color);"><strong>${row.sales}</strong></td>`;
+      }
+      if (channelSpanLama[rIdx] > 0) {
+        rowHtml += `<td rowspan="${channelSpanLama[rIdx]}" style="vertical-align: top; border-right: 1px solid var(--border-color);">${row.channel}</td>`;
+      }
+      rowHtml += `<td style="border-right: 1px solid var(--border-color);">${row.mql}</td>`;
+      rowHtml += `<td><span style="color: var(--gold-primary); font-weight: 600;">${row.qty} Leads</span></td>`;
+      rowHtml += '</tr>';
+      lamaTbody.innerHTML += rowHtml;
     });
   }
 }
