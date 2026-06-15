@@ -725,7 +725,7 @@ function renderDashboard() {
     });
   }
 
-  // 4. Render Detail Drill-down (Sumber Leads & Jenis Pesan)
+  // 4. Render Detail Drill-down (Unified Table: Nama Sales -> Sumber Leads -> Jenis Pesan -> Total Qty)
   document.getElementById('drilldown-sales-title').innerText = selectedSalesDashboard;
   
   // Filter leads sesuai dengan sales yang dipilih
@@ -736,63 +736,88 @@ function renderDashboard() {
   const drilldownQty = drilldownLeads.reduce((acc, curr) => acc + (parseInt(curr['Qty'], 10) || 0), 0);
   document.getElementById('drilldown-sales-qty').innerText = `Total: ${drilldownQty} Qty (${drilldownLeads.length} Leads)`;
 
-  // Hitung sebaran sumber leads dan jenis pesan
-  const drilldownSources = {};
-  const drilldownMessages = {};
-
+  // Group data by Sales -> Source -> Message Type
+  const groups = {};
   drilldownLeads.forEach(lead => {
-    const qty = parseInt(lead['Qty'], 10) || 0;
-    const src = lead['Sumber Leads'] || 'Tidak Diketahui';
+    const sales = lead['Nama Sales'] || 'Tidak Diketahui';
+    const source = lead['Sumber Leads'] || 'Tidak Diketahui';
     const msg = lead['Jenis Pesan'] || 'Tidak Diketahui';
-
-    if (!drilldownSources[src]) {
-      drilldownSources[src] = { count: 0, qty: 0 };
-    }
-    drilldownSources[src].count += 1;
-    drilldownSources[src].qty += qty;
-
-    if (!drilldownMessages[msg]) {
-      drilldownMessages[msg] = { count: 0, qty: 0 };
-    }
-    drilldownMessages[msg].count += 1;
-    drilldownMessages[msg].qty += qty;
+    const qty = parseInt(lead['Qty'], 10) || 0;
+    
+    if (!groups[sales]) groups[sales] = {};
+    if (!groups[sales][source]) groups[sales][source] = {};
+    groups[sales][source][msg] = (groups[sales][source][msg] || 0) + qty;
   });
 
-  // Render tabel sumber
-  const sourcesTbody = document.getElementById('drilldown-sources-tbody');
-  sourcesTbody.innerHTML = '';
-  const sortedSources = Object.entries(drilldownSources).sort((a, b) => b[1].qty - a[1].qty);
-  
-  if (sortedSources.length === 0) {
-    sourcesTbody.innerHTML = `<tr><td colspan="3" class="no-data-msg">Tidak ada data sebaran sumber leads.</td></tr>`;
-  } else {
-    sortedSources.forEach(([srcName, data]) => {
-      sourcesTbody.innerHTML += `
-        <tr>
-          <td><strong>${srcName}</strong></td>
-          <td>${data.count} Transaksi</td>
-          <td><span style="color: var(--gold-primary); font-weight: 600;">${data.qty} Qty</span></td>
-        </tr>
-      `;
+  // Flatten the groups to a list of rows
+  const rows = [];
+  const sortedSalesKeys = Object.keys(groups).sort();
+  sortedSalesKeys.forEach(sales => {
+    const sortedSourceKeys = Object.keys(groups[sales]).sort();
+    sortedSourceKeys.forEach(source => {
+      const sortedMsgKeys = Object.keys(groups[sales][source]).sort();
+      sortedMsgKeys.forEach(msg => {
+        rows.push({
+          sales,
+          source,
+          msg,
+          qty: groups[sales][source][msg]
+        });
+      });
     });
+  });
+
+  // Pre-calculate rowspan counts
+  const salesSpan = [];
+  const sourceSpan = [];
+  let idx = 0;
+  while (idx < rows.length) {
+    let nextSalesIdx = idx;
+    while (nextSalesIdx < rows.length && rows[nextSalesIdx].sales === rows[idx].sales) {
+      nextSalesIdx++;
+    }
+    const salesCount = nextSalesIdx - idx;
+    salesSpan[idx] = salesCount;
+    for (let k = idx + 1; k < nextSalesIdx; k++) {
+      salesSpan[k] = 0;
+    }
+    
+    let sourceStart = idx;
+    while (sourceStart < nextSalesIdx) {
+      let sourceEnd = sourceStart;
+      while (sourceEnd < nextSalesIdx && rows[sourceEnd].source === rows[sourceStart].source) {
+        sourceEnd++;
+      }
+      const sourceCount = sourceEnd - sourceStart;
+      sourceSpan[sourceStart] = sourceCount;
+      for (let k = sourceStart + 1; k < sourceEnd; k++) {
+        sourceSpan[k] = 0;
+      }
+      sourceStart = sourceEnd;
+    }
+    
+    idx = nextSalesIdx;
   }
 
-  // Render tabel pesan
-  const messagesTbody = document.getElementById('drilldown-messages-tbody');
-  messagesTbody.innerHTML = '';
-  const sortedMessages = Object.entries(drilldownMessages).sort((a, b) => b[1].qty - a[1].qty);
-  
-  if (sortedMessages.length === 0) {
-    messagesTbody.innerHTML = `<tr><td colspan="3" class="no-data-msg">Tidak ada data jenis pesan.</td></tr>`;
+  // Render the table
+  const unifiedTbody = document.getElementById('drilldown-unified-tbody');
+  unifiedTbody.innerHTML = '';
+
+  if (rows.length === 0) {
+    unifiedTbody.innerHTML = `<tr><td colspan="4" class="no-data-msg">Tidak ada data untuk kombinasi analitik ini.</td></tr>`;
   } else {
-    sortedMessages.forEach(([msgName, data]) => {
-      messagesTbody.innerHTML += `
-        <tr>
-          <td><strong>${msgName}</strong></td>
-          <td>${data.count} Transaksi</td>
-          <td><span style="color: var(--gold-primary); font-weight: 600;">${data.qty} Qty</span></td>
-        </tr>
-      `;
+    rows.forEach((row, rIdx) => {
+      let rowHtml = '<tr>';
+      if (salesSpan[rIdx] > 0) {
+        rowHtml += `<td rowspan="${salesSpan[rIdx]}" style="vertical-align: top; border-right: 1px solid var(--border-color);"><strong>${row.sales}</strong></td>`;
+      }
+      if (sourceSpan[rIdx] > 0) {
+        rowHtml += `<td rowspan="${sourceSpan[rIdx]}" style="vertical-align: top; border-right: 1px solid var(--border-color);">${row.source}</td>`;
+      }
+      rowHtml += `<td style="border-right: 1px solid var(--border-color);">${row.msg}</td>`;
+      rowHtml += `<td><span style="color: var(--gold-primary); font-weight: 600;">${row.qty} Qty</span></td>`;
+      rowHtml += '</tr>';
+      unifiedTbody.innerHTML += rowHtml;
     });
   }
 }
