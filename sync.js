@@ -13,12 +13,12 @@ class SoviaSync {
     window.addEventListener('online', () => this.handleNetworkChange(true));
     window.addEventListener('offline', () => this.handleNetworkChange(false));
     
-    // Loop sinkronisasi background setiap 20 detik
+    // Loop sinkronisasi background setiap 5 menit (300.000 ms)
     setInterval(() => {
       if (this.isOnline && !this.isSyncing) {
         this.syncNow();
       }
-    }, 20000);
+    }, 300000);
   }
 
   /**
