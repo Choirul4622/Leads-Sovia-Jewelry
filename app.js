@@ -1253,6 +1253,9 @@ function renderDashboard() {
     ? filteredLeads.filter(l => l['Block Lose'] && l['Block Lose'] !== '-')
     : filteredLeads.filter(l => l['Nama Sales'] === selectedSalesDashboard && l['Block Lose'] && l['Block Lose'] !== '-');
 
+  const terhentiQty = terhentiLeads.reduce((acc, curr) => acc + (parseInt(curr['Qty'], 10) || 0), 0);
+  document.getElementById('drilldown-terhenti-qty').innerText = `Total: ${terhentiQty} Leads (${terhentiLeads.length} Recap)`;
+
   const groupsTerhenti = {};
   terhentiLeads.forEach(lead => {
     const sales = lead['Nama Sales'] || 'Tidak Diketahui';
@@ -1339,6 +1342,9 @@ function renderDashboard() {
   const lamaLeads = selectedSalesDashboard === 'Semua Sales'
     ? filteredLeads.filter(l => l['MQL'] && l['MQL'] !== '-')
     : filteredLeads.filter(l => l['Nama Sales'] === selectedSalesDashboard && l['MQL'] && l['MQL'] !== '-');
+
+  const lamaQty = lamaLeads.reduce((acc, curr) => acc + (parseInt(curr['Qty'], 10) || 0), 0);
+  document.getElementById('drilldown-lama-qty').innerText = `Total: ${lamaQty} Leads (${lamaLeads.length} Recap)`;
 
   const groupsLama = {};
   lamaLeads.forEach(lead => {
