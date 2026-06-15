@@ -498,6 +498,26 @@ main {
   padding-top: 1.5rem;
 }
 
+.lead-item-row {
+  display: grid;
+  grid-template-columns: 2fr 2fr 1fr 50px;
+  gap: 1rem;
+  align-items: flex-end;
+  margin-bottom: 1rem;
+  animation: fadeIn 0.3s ease-out;
+}
+
+@media (max-width: 768px) {
+  .lead-item-row {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  .lead-item-row .btn-remove-item-row {
+    width: 100% !important;
+    margin-top: 0.5rem;
+  }
+}
+
 .btn-secondary {
   background-color: transparent;
   border: 1px solid var(--border-color);
@@ -935,4 +955,18 @@ main {
   .sync-widget {
     display: none; /* Hide or make floating on mobile */
   }
+}
+
+/* Clickable Sales Cards */
+.card-grid .card {
+  cursor: pointer;
+  user-select: none;
+}
+.card-grid .card.active {
+  border-color: var(--gold-primary);
+  box-shadow: var(--gold-glow);
+  transform: translateY(-4px);
+}
+.card-grid .card.active::before {
+  opacity: 1;
 }
