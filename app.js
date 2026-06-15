@@ -220,22 +220,22 @@ function addLeadItemRow(channelVal = '', sourceVal = '', messageVal = '', blockV
   
   // Options for dropdowns
   let channelOptionsHtml = '<option value="">-- Pilih Channel --</option>';
-  validationOptions.channels.forEach(opt => {
+  (validationOptions.channels || []).forEach(opt => {
     channelOptionsHtml += `<option value="${opt}" ${opt === channelVal ? 'selected' : ''}>${opt}</option>`;
   });
 
   let sourceOptionsHtml = '<option value="">-- Pilih Sumber --</option>';
-  validationOptions.sources.forEach(opt => {
+  (validationOptions.sources || []).forEach(opt => {
     sourceOptionsHtml += `<option value="${opt}" ${opt === sourceVal ? 'selected' : ''}>${opt}</option>`;
   });
 
   let messageOptionsHtml = '<option value="">-- Pilih Jenis Pesan --</option>';
-  validationOptions.messages.forEach(opt => {
+  (validationOptions.messages || []).forEach(opt => {
     messageOptionsHtml += `<option value="${opt}" ${opt === messageVal ? 'selected' : ''}>${opt}</option>`;
   });
 
   let blockOptionsHtml = '<option value="">-- Pilih Block/Loose --</option>';
-  validationOptions.blocks.forEach(opt => {
+  (validationOptions.blocks || []).forEach(opt => {
     blockOptionsHtml += `<option value="${opt}" ${opt === blockVal ? 'selected' : ''}>${opt}</option>`;
   });
 
@@ -316,7 +316,7 @@ function renderDropdownSelectors() {
   salesDropdown.innerHTML = '<option value="">-- Pilih Sales --</option>';
 
   // Isi dengan data lokal
-  validationOptions.sales.forEach(opt => {
+  (validationOptions.sales || []).forEach(opt => {
     salesDropdown.innerHTML += `<option value="${opt}">${opt}</option>`;
   });
 
@@ -325,7 +325,7 @@ function renderDropdownSelectors() {
   channelDropdowns.forEach(dropdown => {
     const currentVal = dropdown.value;
     dropdown.innerHTML = '<option value="">-- Pilih Channel --</option>';
-    validationOptions.channels.forEach(opt => {
+    (validationOptions.channels || []).forEach(opt => {
       dropdown.innerHTML += `<option value="${opt}" ${opt === currentVal ? 'selected' : ''}>${opt}</option>`;
     });
   });
@@ -334,7 +334,7 @@ function renderDropdownSelectors() {
   sourceDropdowns.forEach(dropdown => {
     const currentVal = dropdown.value;
     dropdown.innerHTML = '<option value="">-- Pilih Sumber --</option>';
-    validationOptions.sources.forEach(opt => {
+    (validationOptions.sources || []).forEach(opt => {
       dropdown.innerHTML += `<option value="${opt}" ${opt === currentVal ? 'selected' : ''}>${opt}</option>`;
     });
   });
@@ -343,7 +343,7 @@ function renderDropdownSelectors() {
   messageDropdowns.forEach(dropdown => {
     const currentVal = dropdown.value;
     dropdown.innerHTML = '<option value="">-- Pilih Jenis Pesan --</option>';
-    validationOptions.messages.forEach(opt => {
+    (validationOptions.messages || []).forEach(opt => {
       dropdown.innerHTML += `<option value="${opt}" ${opt === currentVal ? 'selected' : ''}>${opt}</option>`;
     });
   });
@@ -352,7 +352,7 @@ function renderDropdownSelectors() {
   blockDropdowns.forEach(dropdown => {
     const currentVal = dropdown.value;
     dropdown.innerHTML = '<option value="">-- Pilih Block/Loose --</option>';
-    validationOptions.blocks.forEach(opt => {
+    (validationOptions.blocks || []).forEach(opt => {
       dropdown.innerHTML += `<option value="${opt}" ${opt === currentVal ? 'selected' : ''}>${opt}</option>`;
     });
   });
