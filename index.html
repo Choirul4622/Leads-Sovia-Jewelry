@@ -78,20 +78,9 @@
         <button class="btn-secondary" onclick="resetDashboardFilters()" style="padding: 0.6rem 1.2rem;">Hari Ini</button>
       </div>
 
-      <!-- Ringkasan Kartu -->
-      <div class="card-grid">
-        <div class="card">
-          <span class="card-title">Total Transaksi Leads</span>
-          <span id="metric-total-leads" class="card-value">0</span>
-        </div>
-        <div class="card">
-          <span class="card-title">Total Quantity Leads</span>
-          <span id="metric-total-qty" class="card-value">0</span>
-        </div>
-        <div class="card">
-          <span class="card-title">Top Sales Performance</span>
-          <span id="metric-top-sales" class="card-value" style="font-size: 1.5rem; height: 54px; display: flex; align-items: center;">-</span>
-        </div>
+      <!-- Ringkasan Kartu Per Sales -->
+      <div id="sales-cards-container" class="card-grid">
+        <!-- Kartu metrik per sales akan digenerate secara dinamis di sini -->
       </div>
 
       <!-- Analitik Detail -->
@@ -116,19 +105,49 @@
           </div>
         </div>
 
-        <!-- Leaderboard Sales -->
-        <div class="section-panel">
-          <h2 class="section-title">Performa Sales (Qty)</h2>
-          <div id="sales-leaderboard" class="leaderboard-list">
-            <!-- Diisi via JS -->
-          </div>
-        </div>
-
-        <!-- Opsi Sumber Leads -->
-        <div class="section-panel">
-          <h2 class="section-title">Sumber Leads Terbanyak</h2>
-          <div id="sources-leaderboard" class="leaderboard-list">
-            <!-- Diisi via JS -->
+        <!-- Detail Drill-down Distribusi Leads per Sales -->
+        <div class="section-panel" style="grid-column: span 2;">
+          <h2 class="section-title">
+            Distribusi Leads Sales: <span id="drilldown-sales-title" style="color: var(--gold-primary); font-weight: 700;">Semua Sales</span>
+            <span id="drilldown-sales-qty" class="badge synced" style="font-size: 0.85rem; font-family: var(--font-body); padding: 0.35rem 0.75rem;">Total: 0 Qty</span>
+          </h2>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-top: 1rem;">
+            <!-- Distribusi Sumber Leads -->
+            <div>
+              <h3 style="font-family: var(--font-title); font-size: 1.05rem; font-weight: 600; margin-bottom: 1rem; color: var(--gold-primary); border-bottom: 1px dashed var(--border-color); padding-bottom: 0.5rem;">Sebaran Sumber Leads</h3>
+              <div style="overflow-x: auto;">
+                <table class="history-table" style="font-size: 0.85rem;">
+                  <thead>
+                    <tr>
+                      <th>Sumber Leads</th>
+                      <th>Jumlah Transaksi</th>
+                      <th>Total Qty</th>
+                    </tr>
+                  </thead>
+                  <tbody id="drilldown-sources-tbody">
+                    <!-- Diisi otomatis -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <!-- Distribusi Jenis Pesan -->
+            <div>
+              <h3 style="font-family: var(--font-title); font-size: 1.05rem; font-weight: 600; margin-bottom: 1rem; color: var(--gold-primary); border-bottom: 1px dashed var(--border-color); padding-bottom: 0.5rem;">Breakdown Jenis Pesan</h3>
+              <div style="overflow-x: auto;">
+                <table class="history-table" style="font-size: 0.85rem;">
+                  <thead>
+                    <tr>
+                      <th>Jenis Pesan</th>
+                      <th>Jumlah Transaksi</th>
+                      <th>Total Qty</th>
+                    </tr>
+                  </thead>
+                  <tbody id="drilldown-messages-tbody">
+                    <!-- Diisi otomatis -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         </div>
       </div>
