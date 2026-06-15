@@ -143,21 +143,7 @@ class SoviaDB {
           else if (item.type === 'Jenis Pesan') result.messages = item.values;
         });
 
-        // Jika data kosong, isi dengan default secara lokal
-        if (result.sales.length === 0 && result.sources.length === 0 && result.messages.length === 0) {
-          const defaultSales = ['Syifa', 'Devi', 'Risa', 'Intan'];
-          const defaultSources = ['Instagram', 'Tiktok', 'WhatsApp', 'Website'];
-          const defaultMessages = ['Tanya Harga', 'Custom Order', 'Ready Stock', 'Komplain'];
-
-          // Simpan secara asinkron ke DB lokal agar permanen
-          this.saveValidationOptions('Nama Sales', defaultSales);
-          this.saveValidationOptions('Sumber Leads', defaultSources);
-          this.saveValidationOptions('Jenis Pesan', defaultMessages);
-
-          resolve({ sales: defaultSales, sources: defaultSources, messages: defaultMessages });
-        } else {
-          resolve(result);
-        }
+        resolve(result);
       };
       request.onerror = () => reject(request.error);
     });
