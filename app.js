@@ -1000,16 +1000,6 @@ function selectSalesDashboard(salesName) {
 }
 
 /**
- * Memilih tanggal harian dari tabel summary untuk memfilter dashboard
- */
-function selectDashboardDate(day) {
-  document.getElementById('filter-start-date').value = day;
-  document.getElementById('filter-end-date').value = day;
-  renderDashboard();
-  showToast(`Menampilkan data untuk tanggal ${day}`, 'info');
-}
-
-/**
  * Mengkalkulasi metrik & merender dashboard secara realtime dengan drilldown kartu per sales
  */
 function renderDashboard() {
@@ -1029,15 +1019,19 @@ function renderDashboard() {
     return leadDate >= filterStart && leadDate <= filterEnd;
   });
 
-  // 1. Hitung total transaksi dan qty keseluruhan
-  const totalLeadsCount = filteredLeads.length;
+  // Filter khusus leads dari distribusi leads sales saja untuk kartu sales
+  const salesDistributionLeads = filteredLeads.filter(lead => {
+    return lead['Sumber Leads'] && lead['Sumber Leads'] !== '-' && lead['Jenis Pesan'] && lead['Jenis Pesan'] !== '-';
+  });
+
+  // 1. Hitung total transaksi dan qty keseluruhan (hanya untuk distribusi sales)
+  const totalLeadsCount = salesDistributionLeads.length;
   let totalQty = 0;
 
-  // Map untuk memetakan performa sales di range terpilih
+  // Map untuk memetakan performa sales di range terpilih (hanya distribusi leads sales saja)
   const salesMap = {};
-  const dailySummary = {};
 
-  filteredLeads.forEach(lead => {
+  salesDistributionLeads.forEach(lead => {
     const qty = parseInt(lead['Qty'], 10) || 0;
     totalQty += qty;
 
@@ -1047,15 +1041,6 @@ function renderDashboard() {
     }
     salesMap[sales].count += 1;
     salesMap[sales].qty += qty;
-
-    // Daily summary grouping (berdasarkan Tanggal YYYY-MM-DD)
-    const dateOnly = lead['Tanggal Leads'].substring(0, 10);
-    if (!dailySummary[dateOnly]) {
-      dailySummary[dateOnly] = { count: 0, qty: 0, salesMap: {} };
-    }
-    dailySummary[dateOnly].count += 1;
-    dailySummary[dateOnly].qty += qty;
-    dailySummary[dateOnly].salesMap[sales] = (dailySummary[dateOnly].salesMap[sales] || 0) + qty;
   });
 
   // 2. Render Kartu Per Sales
@@ -1064,7 +1049,7 @@ function renderDashboard() {
 
   // Buat set nama sales unik dari data dan validation dropdown
   const allSalesNames = new Set(validationOptions.sales);
-  filteredLeads.forEach(lead => {
+  salesDistributionLeads.forEach(lead => {
     if (lead['Nama Sales']) allSalesNames.add(lead['Nama Sales']);
   });
 
@@ -1094,34 +1079,195 @@ function renderDashboard() {
     `;
   });
 
-  // 3. Render Daily Summary Table (Keseluruhan)
-  const dailyTbody = document.getElementById('dashboard-daily-table-body');
-  dailyTbody.innerHTML = '';
+  // 3. Kalkulasi metrik global & channel-grouped
+  const globalSources = {};
+  const globalMessages = {};
+  const globalBlocks = {};
+  const globalMql = {};
+
+  const channelMap = {};
   
-  const sortedDays = Object.keys(dailySummary).sort((a, b) => new Date(b) - new Date(a));
-  if (sortedDays.length === 0) {
-    dailyTbody.innerHTML = `<tr><td colspan="4" class="no-data-msg">Tidak ada data transaksi harian di range ini.</td></tr>`;
+  // Inisialisasi map channel berdasarkan opsi channel di validasi
+  (validationOptions.channels || []).forEach(ch => {
+    channelMap[ch] = {
+      sources: {},
+      messages: {},
+      blocks: {},
+      mql: {},
+      totalQty: 0
+    };
+  });
+
+  filteredLeads.forEach(lead => {
+    const qty = parseInt(lead['Qty'], 10) || 0;
+    const channel = lead['Sumber Channel'] || 'Tidak Diketahui';
+    
+    if (!channelMap[channel]) {
+      channelMap[channel] = {
+        sources: {},
+        messages: {},
+        blocks: {},
+        mql: {},
+        totalQty: 0
+      };
+    }
+    
+    channelMap[channel].totalQty += qty;
+
+    const source = lead['Sumber Leads'];
+    const msg = lead['Jenis Pesan'];
+    const block = lead['Block Lose'];
+    const mqlVal = lead['MQL'];
+
+    if (source && source !== '-') {
+      globalSources[source] = (globalSources[source] || 0) + qty;
+      channelMap[channel].sources[source] = (channelMap[channel].sources[source] || 0) + qty;
+    }
+    if (msg && msg !== '-') {
+      globalMessages[msg] = (globalMessages[msg] || 0) + qty;
+      channelMap[channel].messages[msg] = (channelMap[channel].messages[msg] || 0) + qty;
+    }
+    if (block && block !== '-') {
+      globalBlocks[block] = (globalBlocks[block] || 0) + qty;
+      channelMap[channel].blocks[block] = (channelMap[channel].blocks[block] || 0) + qty;
+    }
+    if (mqlVal && mqlVal !== '-') {
+      globalMql[mqlVal] = (globalMql[mqlVal] || 0) + qty;
+      channelMap[channel].mql[mqlVal] = (channelMap[channel].mql[mqlVal] || 0) + qty;
+    }
+  });
+
+  const getSum = (tallyObj) => Object.values(tallyObj).reduce((s, v) => s + v, 0);
+
+  const renderList = (tallyObj) => {
+    const sorted = Object.keys(tallyObj).sort((a, b) => tallyObj[b] - tallyObj[a]);
+    if (sorted.length === 0) {
+      return `<div style="color: var(--text-muted); font-size: 0.85rem; font-style: italic; padding: 0.5rem 0; text-align: center;">Tidak ada data</div>`;
+    }
+    return sorted.map(k => `
+      <div class="mini-metric-card">
+        <span class="mini-card-label">${k}</span>
+        <span class="mini-card-value">${tallyObj[k]} Leads</span>
+      </div>
+    `).join('');
+  };
+
+  // Render Global Analytics
+  const globalContainer = document.getElementById('global-analytics-container');
+  globalContainer.innerHTML = `
+    <div class="metrics-section-grid">
+      <!-- Sumber Leads -->
+      <div class="metric-group-card">
+        <div class="metric-group-header">
+          <span>Sumber Leads</span>
+          <span class="badge synced" style="font-size: 0.75rem;">Total: ${getSum(globalSources)}</span>
+        </div>
+        <div class="mini-card-list">
+          ${renderList(globalSources)}
+        </div>
+      </div>
+
+      <!-- Jenis Pesan -->
+      <div class="metric-group-card">
+        <div class="metric-group-header">
+          <span>Jenis Pesan</span>
+          <span class="badge synced" style="font-size: 0.75rem;">Total: ${getSum(globalMessages)}</span>
+        </div>
+        <div class="mini-card-list">
+          ${renderList(globalMessages)}
+        </div>
+      </div>
+
+      <!-- Block Lose -->
+      <div class="metric-group-card">
+        <div class="metric-group-header">
+          <span>Block Lose</span>
+          <span class="badge synced" style="font-size: 0.75rem;">Total: ${getSum(globalBlocks)}</span>
+        </div>
+        <div class="mini-card-list">
+          ${renderList(globalBlocks)}
+        </div>
+      </div>
+
+      <!-- MQL -->
+      <div class="metric-group-card">
+        <div class="metric-group-header">
+          <span>MQL</span>
+          <span class="badge synced" style="font-size: 0.75rem;">Total: ${getSum(globalMql)}</span>
+        </div>
+        <div class="mini-card-list">
+          ${renderList(globalMql)}
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Render Per Channel Analytics
+  const channelContainer = document.getElementById('channel-analytics-container');
+  channelContainer.innerHTML = '';
+
+  const activeChannels = Object.keys(channelMap).filter(ch => channelMap[ch].totalQty > 0);
+  
+  if (activeChannels.length === 0) {
+    channelContainer.innerHTML = `<div class="no-data-msg">Tidak ada data channel untuk range tanggal ini.</div>`;
   } else {
-    sortedDays.forEach(day => {
-      const dayData = dailySummary[day];
-      
-      // Cari Top Sales di hari itu
-      let dayTopSales = '-';
-      let dayTopSalesQty = 0;
-      for (const s in dayData.salesMap) {
-        if (dayData.salesMap[s] > dayTopSalesQty) {
-          dayTopSalesQty = dayData.salesMap[s];
-          dayTopSales = s;
-        }
-      }
-      
-      dailyTbody.innerHTML += `
-        <tr onclick="selectDashboardDate('${day}')" style="cursor: pointer;">
-          <td><strong>${day}</strong></td>
-          <td>${dayData.count} Recap</td>
-          <td>${dayData.qty} Leads</td>
-          <td>${dayTopSales} (${dayTopSalesQty} Leads)</td>
-        </tr>
+    // Urutkan channel berdasarkan total qty terbanyak
+    activeChannels.sort((a, b) => channelMap[b].totalQty - channelMap[a].totalQty);
+
+    activeChannels.forEach(ch => {
+      const data = channelMap[ch];
+      channelContainer.innerHTML += `
+        <div class="channel-box">
+          <div class="channel-header-bar">
+            <span class="channel-name">${ch}</span>
+            <span class="channel-total-badge">Total: ${data.totalQty} Leads</span>
+          </div>
+          <div class="metrics-section-grid">
+            <!-- Sumber Leads -->
+            <div class="metric-group-card">
+              <div class="metric-group-header">
+                <span>Sumber Leads</span>
+                <span class="badge synced" style="font-size: 0.75rem;">Total: ${getSum(data.sources)}</span>
+              </div>
+              <div class="mini-card-list">
+                ${renderList(data.sources)}
+              </div>
+            </div>
+
+            <!-- Jenis Pesan -->
+            <div class="metric-group-card">
+              <div class="metric-group-header">
+                <span>Jenis Pesan</span>
+                <span class="badge synced" style="font-size: 0.75rem;">Total: ${getSum(data.messages)}</span>
+              </div>
+              <div class="mini-card-list">
+                ${renderList(data.messages)}
+              </div>
+            </div>
+
+            <!-- Block Lose -->
+            <div class="metric-group-card">
+              <div class="metric-group-header">
+                <span>Block Lose</span>
+                <span class="badge synced" style="font-size: 0.75rem;">Total: ${getSum(data.blocks)}</span>
+              </div>
+              <div class="mini-card-list">
+                ${renderList(data.blocks)}
+              </div>
+            </div>
+
+            <!-- MQL -->
+            <div class="metric-group-card">
+              <div class="metric-group-header">
+                <span>MQL</span>
+                <span class="badge synced" style="font-size: 0.75rem;">Total: ${getSum(data.mql)}</span>
+              </div>
+              <div class="mini-card-list">
+                ${renderList(data.mql)}
+              </div>
+            </div>
+          </div>
+        </div>
       `;
     });
   }
