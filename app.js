@@ -249,19 +249,19 @@ function addLeadItemRow(sourceVal = '', messageVal = '', qtyVal = 1) {
     <div class="lead-item-row" id="${rowId}">
       <div class="form-group">
         <label>Sumber Leads</label>
-        <select class="form-control lead-item-source" required>
+        <select class="form-control lead-item-source">
           ${sourceOptionsHtml}
         </select>
       </div>
       <div class="form-group">
         <label>Jenis Pesan</label>
-        <select class="form-control lead-item-message" required>
+        <select class="form-control lead-item-message">
           ${messageOptionsHtml}
         </select>
       </div>
       <div class="form-group">
         <label>Qty / Jumlah</label>
-        <input type="number" class="form-control lead-item-qty" min="1" required value="${qtyVal}">
+        <input type="number" class="form-control lead-item-qty" min="1" value="${qtyVal}">
       </div>
       <button type="button" class="btn-action delete btn-remove-item-row" onclick="removeLeadItemRow('${rowId}')" style="height: 42px; width: 42px; display: flex; align-items: center; justify-content: center; background-color: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 6px;" title="Hapus Baris">
         <svg viewBox="0 0 24 24" style="width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2;"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
@@ -301,13 +301,13 @@ function addTerhentiRow(blockVal = '', qtyVal = 1) {
     <div class="terhenti-item-row" id="${rowId}">
       <div class="form-group">
         <label>Block Lose</label>
-        <select class="form-control terhenti-item-block" required>
+        <select class="form-control terhenti-item-block">
           ${blockOptionsHtml}
         </select>
       </div>
       <div class="form-group">
         <label>Qty / Jumlah</label>
-        <input type="number" class="form-control terhenti-item-qty" min="1" required value="${qtyVal}">
+        <input type="number" class="form-control terhenti-item-qty" min="1" value="${qtyVal}">
       </div>
       <button type="button" class="btn-action delete btn-remove-terhenti-row" onclick="removeTerhentiRow('${rowId}')" style="height: 42px; width: 42px; display: flex; align-items: center; justify-content: center; background-color: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 6px;" title="Hapus Baris">
         <svg viewBox="0 0 24 24" style="width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2;"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
@@ -347,13 +347,13 @@ function addLamaRow(mqlVal = '', qtyVal = 1) {
     <div class="lama-item-row" id="${rowId}">
       <div class="form-group">
         <label>MQL</label>
-        <select class="form-control lama-item-mql" required>
+        <select class="form-control lama-item-mql">
           ${mqlOptionsHtml}
         </select>
       </div>
       <div class="form-group">
         <label>Qty / Jumlah</label>
-        <input type="number" class="form-control lama-item-qty" min="1" required value="${qtyVal}">
+        <input type="number" class="form-control lama-item-qty" min="1" value="${qtyVal}">
       </div>
       <button type="button" class="btn-action delete btn-remove-lama-row" onclick="removeLamaRow('${rowId}')" style="height: 42px; width: 42px; display: flex; align-items: center; justify-content: center; background-color: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 6px;" title="Hapus Baris">
         <svg viewBox="0 0 24 24" style="width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2;"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
@@ -459,13 +459,13 @@ async function handleLeadSubmit(event) {
       const source = row.querySelector('.lead-item-source').value;
       const message = row.querySelector('.lead-item-message').value;
       const qty = parseInt(row.querySelector('.lead-item-qty').value, 10) || 1;
-      if (source && message) {
+      if (source || message) {
         rowsToSave.push({
           type: 'rekap',
           tempId: `${idLeads}-R${i + 1}`,
           data: {
-            'Sumber Leads': source,
-            'Jenis Pesan': message,
+            'Sumber Leads': source || '-',
+            'Jenis Pesan': message || '-',
             'Block Lose': '-',
             'MQL': '-',
             'Qty': qty
@@ -515,8 +515,18 @@ async function handleLeadSubmit(event) {
     });
 
     if (rowsToSave.length === 0) {
-      showToast('Harap tambahkan setidaknya satu item rekap, chat terhenti, atau chat lama!', 'warning');
-      return;
+      // Jika sama sekali tidak ada item yang diisi, simpan satu baris data kosong (hanya berisi header rekap)
+      rowsToSave.push({
+        type: 'rekap',
+        tempId: idLeads,
+        data: {
+          'Sumber Leads': '-',
+          'Jenis Pesan': '-',
+          'Block Lose': '-',
+          'MQL': '-',
+          'Qty': 1
+        }
+      });
     }
 
     // Jika hanya ada 1 item dari seluruh kategori, pertahankan base ID asli
@@ -564,14 +574,14 @@ async function handleLeadSubmit(event) {
     const lamaRow = document.querySelector('.lama-item-row');
 
     if (rekapRow && rekapRow.style.display !== 'none') {
-      source = rekapRow.querySelector('.lead-item-source').value;
-      message = rekapRow.querySelector('.lead-item-message').value;
+      source = rekapRow.querySelector('.lead-item-source').value || '-';
+      message = rekapRow.querySelector('.lead-item-message').value || '-';
       qty = parseInt(rekapRow.querySelector('.lead-item-qty').value, 10) || 1;
     } else if (terhentiRow && terhentiRow.style.display !== 'none') {
-      block = terhentiRow.querySelector('.terhenti-item-block').value;
+      block = terhentiRow.querySelector('.terhenti-item-block').value || '-';
       qty = parseInt(terhentiRow.querySelector('.terhenti-item-qty').value, 10) || 1;
     } else if (lamaRow && lamaRow.style.display !== 'none') {
-      mql = lamaRow.querySelector('.lama-item-mql').value;
+      mql = lamaRow.querySelector('.lama-item-mql').value || '-';
       qty = parseInt(lamaRow.querySelector('.lama-item-qty').value, 10) || 1;
     }
 
