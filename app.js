@@ -1020,6 +1020,86 @@ function selectDashboardDate(day) {
 }
 
 /**
+ * Helper: Merender baris detail leads sales per channel (Sales -> Sumber Leads -> Jenis Pesan -> Total Leads)
+ * Mengembalikan string HTML baris tabel dengan rowspan bertingkat.
+ */
+function renderChannelDetailRows(channelLeads) {
+  if (!channelLeads || channelLeads.length === 0) {
+    return `<tr><td colspan="4" class="no-data-msg">Tidak ada data leads sales pada channel ini.</td></tr>`;
+  }
+
+  // Group data by Sales -> Source -> Message Type
+  const groups = {};
+  channelLeads.forEach(lead => {
+    const sales = lead['Nama Sales'] || 'Tidak Diketahui';
+    const source = lead['Sumber Leads'] || 'Tidak Diketahui';
+    const msg = lead['Jenis Pesan'] || 'Tidak Diketahui';
+    const qty = parseInt(lead['Qty'], 10) || 0;
+
+    if (!groups[sales]) groups[sales] = {};
+    if (!groups[sales][source]) groups[sales][source] = {};
+    groups[sales][source][msg] = (groups[sales][source][msg] || 0) + qty;
+  });
+
+  // Flatten ke list baris
+  const rows = [];
+  const sortedSalesKeys = Object.keys(groups).sort();
+  sortedSalesKeys.forEach(sales => {
+    const sortedSourceKeys = Object.keys(groups[sales]).sort();
+    sortedSourceKeys.forEach(source => {
+      const sortedMsgKeys = Object.keys(groups[sales][source]).sort();
+      sortedMsgKeys.forEach(msg => {
+        rows.push({ sales, source, msg, qty: groups[sales][source][msg] });
+      });
+    });
+  });
+
+  // Pre-calculate rowspan counts
+  const salesSpan = [];
+  const sourceSpan = [];
+
+  let idx = 0;
+  while (idx < rows.length) {
+    let nextSalesIdx = idx;
+    while (nextSalesIdx < rows.length && rows[nextSalesIdx].sales === rows[idx].sales) {
+      nextSalesIdx++;
+    }
+    const salesCount = nextSalesIdx - idx;
+    salesSpan[idx] = salesCount;
+    for (let k = idx + 1; k < nextSalesIdx; k++) salesSpan[k] = 0;
+
+    let sourceStart = idx;
+    while (sourceStart < nextSalesIdx) {
+      let sourceEnd = sourceStart;
+      while (sourceEnd < nextSalesIdx && rows[sourceEnd].source === rows[sourceStart].source) {
+        sourceEnd++;
+      }
+      const sourceCount = sourceEnd - sourceStart;
+      sourceSpan[sourceStart] = sourceCount;
+      for (let k = sourceStart + 1; k < sourceEnd; k++) sourceSpan[k] = 0;
+      sourceStart = sourceEnd;
+    }
+    idx = nextSalesIdx;
+  }
+
+  let html = '';
+  rows.forEach((row, rIdx) => {
+    html += '<tr>';
+    if (salesSpan[rIdx] > 0) {
+      html += `<td rowspan="${salesSpan[rIdx]}" style="vertical-align: top; border-right: 1px solid var(--border-color);"><strong>${row.sales}</strong></td>`;
+    }
+    if (sourceSpan[rIdx] > 0) {
+      html += `<td rowspan="${sourceSpan[rIdx]}" style="vertical-align: top; border-right: 1px solid var(--border-color);">${row.source}</td>`;
+    }
+    html += `<td style="border-right: 1px solid var(--border-color);">${row.msg}</td>`;
+    html += `<td><span style="color: var(--gold-primary); font-weight: 600;">${row.qty} Leads</span></td>`;
+    html += '</tr>';
+  });
+
+  return html;
+}
+
+/**
  * Mengkalkulasi metrik & merender dashboard secara realtime dengan drilldown kartu per sales
  */
 function renderDashboard() {
@@ -1039,15 +1119,20 @@ function renderDashboard() {
     return leadDate >= filterStart && leadDate <= filterEnd;
   });
 
-  // 1. Hitung total transaksi dan qty keseluruhan
-  const totalLeadsCount = filteredLeads.length;
+  // 1. Hitung total transaksi dan qty keseluruhan (hanya leads sales / rekap, tanpa Block Lose & MQL)
+  // Filter hanya leads yang termasuk rekap leads sales (memiliki Sumber Leads & Jenis Pesan)
+  const rekapOnlyLeads = filteredLeads.filter(l =>
+    l['Sumber Leads'] && l['Sumber Leads'] !== '-' &&
+    l['Jenis Pesan'] && l['Jenis Pesan'] !== '-'
+  );
+
+  const totalLeadsCount = rekapOnlyLeads.length;
   let totalQty = 0;
 
-  // Map untuk memetakan performa sales di range terpilih
+  // Map untuk memetakan performa sales di range terpilih (hanya leads sales)
   const salesMap = {};
-  const dailySummary = {};
 
-  filteredLeads.forEach(lead => {
+  rekapOnlyLeads.forEach(lead => {
     const qty = parseInt(lead['Qty'], 10) || 0;
     totalQty += qty;
 
@@ -1057,15 +1142,6 @@ function renderDashboard() {
     }
     salesMap[sales].count += 1;
     salesMap[sales].qty += qty;
-
-    // Daily summary grouping (berdasarkan Tanggal YYYY-MM-DD)
-    const dateOnly = lead['Tanggal Leads'].substring(0, 10);
-    if (!dailySummary[dateOnly]) {
-      dailySummary[dateOnly] = { count: 0, qty: 0, salesMap: {} };
-    }
-    dailySummary[dateOnly].count += 1;
-    dailySummary[dateOnly].qty += qty;
-    dailySummary[dateOnly].salesMap[sales] = (dailySummary[dateOnly].salesMap[sales] || 0) + qty;
   });
 
   // 2. Render Kartu Per Sales
@@ -1104,35 +1180,66 @@ function renderDashboard() {
     `;
   });
 
-  // 3. Render Daily Summary Table (Keseluruhan)
-  const dailyTbody = document.getElementById('dashboard-daily-table-body');
-  dailyTbody.innerHTML = '';
-  
-  const sortedDays = Object.keys(dailySummary).sort((a, b) => new Date(b) - new Date(a));
-  if (sortedDays.length === 0) {
-    dailyTbody.innerHTML = `<tr><td colspan="4" class="no-data-msg">Tidak ada data transaksi harian di range ini.</td></tr>`;
+  // 3. Render Analitik Per Sumber Channel (Channel -> Sales -> Sumber Leads -> Jenis Pesan -> Total Leads)
+  // Hanya menghitung leads sales (rekap), tanpa Block Lose & MQL
+  // Hormati filter sales terpilih: jika sales tertentu dipilih, hanya tampilkan leads sales tersebut
+  const channelContainer = document.getElementById('channel-analytics-container');
+  channelContainer.innerHTML = '';
+
+  const channelSourceLeads = selectedSalesDashboard === 'Semua Sales'
+    ? rekapOnlyLeads
+    : rekapOnlyLeads.filter(l => l['Nama Sales'] === selectedSalesDashboard);
+
+  // Group data rekap leads per Channel
+  const channelGroups = {};
+  channelSourceLeads.forEach(lead => {
+    const channel = lead['Sumber Channel'] || 'Tidak Diketahui';
+    if (!channelGroups[channel]) channelGroups[channel] = [];
+    channelGroups[channel].push(lead);
+  });
+
+  const channelSortedKeys = Object.keys(channelGroups).sort();
+  const channelTotalQty = channelSourceLeads.reduce((acc, curr) => acc + (parseInt(curr['Qty'], 10) || 0), 0);
+  document.getElementById('channel-analytics-qty').innerText = `Total: ${channelTotalQty} Leads (${channelSourceLeads.length} Recap)`;
+
+  if (channelSortedKeys.length === 0) {
+    channelContainer.innerHTML = `<p class="no-data-msg" style="padding: 1rem 0;">Tidak ada data leads sales untuk range ini.</p>`;
   } else {
-    sortedDays.forEach(day => {
-      const dayData = dailySummary[day];
-      
-      // Cari Top Sales di hari itu
-      let dayTopSales = '-';
-      let dayTopSalesQty = 0;
-      for (const s in dayData.salesMap) {
-        if (dayData.salesMap[s] > dayTopSalesQty) {
-          dayTopSalesQty = dayData.salesMap[s];
-          dayTopSales = s;
-        }
-      }
-      
-      dailyTbody.innerHTML += `
-        <tr onclick="selectDashboardDate('${day}')" style="cursor: pointer;">
-          <td><strong>${day}</strong></td>
-          <td>${dayData.count} Recap</td>
-          <td>${dayData.qty} Leads</td>
-          <td>${dayTopSales} (${dayTopSalesQty} Leads)</td>
-        </tr>
+    channelSortedKeys.forEach(channel => {
+      const channelLeads = channelGroups[channel];
+      const channelQty = channelLeads.reduce((acc, curr) => acc + (parseInt(curr['Qty'], 10) || 0), 0);
+      const channelCount = channelLeads.length;
+
+      // Hitung unique sales pada channel ini
+      const salesOnChannel = new Set(channelLeads.map(l => l['Nama Sales'] || 'Tidak Diketahui'));
+
+      const cardHtml = `
+        <div class="channel-analytics-card" style="background-color: var(--bg-card); border: 1px solid var(--border-color); border-radius: 10px; padding: 1.25rem; margin-bottom: 1rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border-color);">
+            <div>
+              <span style="font-family: var(--font-title); font-size: 1.05rem; font-weight: 600; color: var(--gold-primary);">${channel}</span>
+              <span style="font-size: 0.8rem; color: var(--text-muted); margin-left: 0.5rem;">${salesOnChannel.size} Sales &middot; ${channelCount} Recap</span>
+            </div>
+            <span class="badge synced" style="font-size: 0.85rem; font-family: var(--font-body); padding: 0.35rem 0.75rem;">${channelQty} Leads</span>
+          </div>
+          <div style="overflow-x: auto;">
+            <table class="history-table" style="font-size: 0.85rem;">
+              <thead>
+                <tr>
+                  <th>Nama Sales</th>
+                  <th>Sumber Leads</th>
+                  <th>Jenis Pesan</th>
+                  <th>Total Leads</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${renderChannelDetailRows(channelLeads)}
+              </tbody>
+            </table>
+          </div>
+        </div>
       `;
+      channelContainer.insertAdjacentHTML('beforeend', cardHtml);
     });
   }
 
