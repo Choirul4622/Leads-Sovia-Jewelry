@@ -1243,6 +1243,152 @@ function renderDashboard() {
     });
   }
 
+  // 3a. Render Analitik Per Sumber Leads Global
+  const sourceContainer = document.getElementById('source-analytics-container');
+  sourceContainer.innerHTML = '';
+
+  const sourceGroups = {};
+  channelSourceLeads.forEach(lead => {
+    const source = lead['Sumber Leads'] || 'Tidak Diketahui';
+    if (!sourceGroups[source]) sourceGroups[source] = [];
+    sourceGroups[source].push(lead);
+  });
+
+  const sourceSortedKeys = Object.keys(sourceGroups).sort();
+  document.getElementById('source-analytics-qty').innerText = `Total: ${channelTotalQty} Leads (${channelSourceLeads.length} Recap)`;
+
+  if (sourceSortedKeys.length === 0) {
+    sourceContainer.innerHTML = `<p class="no-data-msg" style="padding: 1rem 0;">Tidak ada data sumber leads untuk range ini.</p>`;
+  } else {
+    sourceSortedKeys.forEach(source => {
+      const sourceLeads = sourceGroups[source];
+      const sourceQty = sourceLeads.reduce((acc, curr) => acc + (parseInt(curr['Qty'], 10) || 0), 0);
+      const sourceCount = sourceLeads.length;
+
+      const msgGroups = {};
+      sourceLeads.forEach(lead => {
+        const msg = lead['Jenis Pesan'] || 'Tidak Diketahui';
+        const qty = parseInt(lead['Qty'], 10) || 0;
+        msgGroups[msg] = (msgGroups[msg] || 0) + qty;
+      });
+
+      let msgHtml = '';
+      Object.keys(msgGroups).sort().forEach(msg => {
+        msgHtml += `<tr>
+          <td style="border-right: 1px solid var(--border-color);">${msg}</td>
+          <td><span style="color: var(--gold-primary); font-weight: 600;">${msgGroups[msg]} Leads</span></td>
+        </tr>`;
+      });
+
+      const cardHtml = `
+        <div class="channel-analytics-card" style="background-color: var(--bg-card); border: 1px solid var(--border-color); border-radius: 10px; padding: 1.25rem; margin-bottom: 1rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border-color);">
+            <div>
+              <span style="font-family: var(--font-title); font-size: 1.05rem; font-weight: 600; color: var(--gold-primary);">${source}</span>
+              <span style="font-size: 0.8rem; color: var(--text-muted); margin-left: 0.5rem;">${sourceCount} Recap</span>
+            </div>
+            <span class="badge synced" style="font-size: 0.85rem; font-family: var(--font-body); padding: 0.35rem 0.75rem;">${sourceQty} Leads</span>
+          </div>
+          <div style="overflow-x: auto;">
+            <table class="history-table" style="font-size: 0.85rem;">
+              <thead>
+                <tr>
+                  <th>Jenis Pesan</th>
+                  <th>Total Leads</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${msgHtml}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+      sourceContainer.insertAdjacentHTML('beforeend', cardHtml);
+    });
+  }
+
+  // Calculate terhentiLeads and lamaLeads earlier if needed, or just do it here
+  const globalTerhentiLeads = selectedSalesDashboard === 'Semua Sales'
+    ? filteredLeads.filter(l => l['Block Lose'] && l['Block Lose'] !== '-')
+    : filteredLeads.filter(l => l['Nama Sales'] === selectedSalesDashboard && l['Block Lose'] && l['Block Lose'] !== '-');
+  const globalTerhentiQty = globalTerhentiLeads.reduce((acc, curr) => acc + (parseInt(curr['Qty'], 10) || 0), 0);
+
+  // 3b. Render Analitik Per Block Lose Global
+  const blockContainer = document.getElementById('block-analytics-container');
+  blockContainer.innerHTML = '';
+  document.getElementById('block-analytics-qty').innerText = `Total: ${globalTerhentiQty} Leads (${globalTerhentiLeads.length} Recap)`;
+
+  const blockGroups = {};
+  globalTerhentiLeads.forEach(lead => {
+    const block = lead['Block Lose'] || 'Tidak Diketahui';
+    const qty = parseInt(lead['Qty'], 10) || 0;
+    if (!blockGroups[block]) blockGroups[block] = { qty: 0, count: 0 };
+    blockGroups[block].qty += qty;
+    blockGroups[block].count += 1;
+  });
+
+  const blockSortedKeys = Object.keys(blockGroups).sort();
+  if (blockSortedKeys.length === 0) {
+    blockContainer.innerHTML = `<p class="no-data-msg" style="padding: 1rem 0;">Tidak ada data Block Lose untuk range ini.</p>`;
+  } else {
+    blockSortedKeys.forEach(block => {
+      const bData = blockGroups[block];
+      const cardHtml = `
+        <div class="channel-analytics-card" style="background-color: var(--bg-card); border: 1px solid var(--border-color); border-radius: 10px; padding: 1.25rem; margin-bottom: 1rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+            <div>
+              <span style="font-family: var(--font-title); font-size: 1.05rem; font-weight: 600; color: var(--gold-primary);">${block}</span>
+              <span style="font-size: 0.8rem; color: var(--text-muted); margin-left: 0.5rem;">${bData.count} Recap</span>
+            </div>
+            <span class="badge synced" style="font-size: 0.85rem; font-family: var(--font-body); padding: 0.35rem 0.75rem;">${bData.qty} Leads</span>
+          </div>
+        </div>
+      `;
+      blockContainer.insertAdjacentHTML('beforeend', cardHtml);
+    });
+  }
+
+  // 3c. Render Analitik Per MQL Global
+  const globalLamaLeads = selectedSalesDashboard === 'Semua Sales'
+    ? filteredLeads.filter(l => l['MQL'] && l['MQL'] !== '-')
+    : filteredLeads.filter(l => l['Nama Sales'] === selectedSalesDashboard && l['MQL'] && l['MQL'] !== '-');
+  const globalLamaQty = globalLamaLeads.reduce((acc, curr) => acc + (parseInt(curr['Qty'], 10) || 0), 0);
+
+  const mqlContainer = document.getElementById('mql-analytics-container');
+  mqlContainer.innerHTML = '';
+  document.getElementById('mql-analytics-qty').innerText = `Total: ${globalLamaQty} Leads (${globalLamaLeads.length} Recap)`;
+
+  const mqlGroups = {};
+  globalLamaLeads.forEach(lead => {
+    const mql = lead['MQL'] || 'Tidak Diketahui';
+    const qty = parseInt(lead['Qty'], 10) || 0;
+    if (!mqlGroups[mql]) mqlGroups[mql] = { qty: 0, count: 0 };
+    mqlGroups[mql].qty += qty;
+    mqlGroups[mql].count += 1;
+  });
+
+  const mqlSortedKeys = Object.keys(mqlGroups).sort();
+  if (mqlSortedKeys.length === 0) {
+    mqlContainer.innerHTML = `<p class="no-data-msg" style="padding: 1rem 0;">Tidak ada data MQL untuk range ini.</p>`;
+  } else {
+    mqlSortedKeys.forEach(mql => {
+      const mData = mqlGroups[mql];
+      const cardHtml = `
+        <div class="channel-analytics-card" style="background-color: var(--bg-card); border: 1px solid var(--border-color); border-radius: 10px; padding: 1.25rem; margin-bottom: 1rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+            <div>
+              <span style="font-family: var(--font-title); font-size: 1.05rem; font-weight: 600; color: var(--gold-primary);">${mql}</span>
+              <span style="font-size: 0.8rem; color: var(--text-muted); margin-left: 0.5rem;">${mData.count} Recap</span>
+            </div>
+            <span class="badge synced" style="font-size: 0.85rem; font-family: var(--font-body); padding: 0.35rem 0.75rem;">${mData.qty} Leads</span>
+          </div>
+        </div>
+      `;
+      mqlContainer.insertAdjacentHTML('beforeend', cardHtml);
+    });
+  }
+
   // 4. Render Detail Drill-down Rekapitulasi Leads (Nama Sales -> Sumber Channel -> Sumber Leads -> Jenis Pesan -> Total Leads)
   document.getElementById('drilldown-sales-title').innerText = selectedSalesDashboard;
   
