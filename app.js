@@ -1273,35 +1273,20 @@ function renderDashboard() {
       });
 
       let msgHtml = '';
-      Object.keys(msgGroups).sort().forEach(msg => {
-        msgHtml += `<tr>
-          <td style="border-right: 1px solid var(--border-color);">${msg}</td>
-          <td><span style="color: var(--gold-primary); font-weight: 600;">${msgGroups[msg]} Leads</span></td>
-        </tr>`;
-      });
+      if (Object.keys(msgGroups).length > 0) {
+        msgHtml = `<hr style="margin: 0.75rem 0 0.5rem 0; border: 0; border-top: 1px dashed var(--border-color);"><div style="font-size: 0.75rem; color: var(--text-muted); display: flex; flex-direction: column; gap: 0.2rem;">`;
+        Object.keys(msgGroups).sort().forEach(msg => {
+          msgHtml += `<span>${msg}: <strong style="color: var(--gold-primary);">${msgGroups[msg]} Leads</strong></span>`;
+        });
+        msgHtml += `</div>`;
+      }
 
       const cardHtml = `
-        <div class="channel-analytics-card" style="background-color: var(--bg-card); border: 1px solid var(--border-color); border-radius: 10px; padding: 1.25rem; margin-bottom: 1rem;">
-          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border-color);">
-            <div>
-              <span style="font-family: var(--font-title); font-size: 1.05rem; font-weight: 600; color: var(--gold-primary);">${source}</span>
-              <span style="font-size: 0.8rem; color: var(--text-muted); margin-left: 0.5rem;">${sourceCount} Recap</span>
-            </div>
-            <span class="badge synced" style="font-size: 0.85rem; font-family: var(--font-body); padding: 0.35rem 0.75rem;">${sourceQty} Leads</span>
-          </div>
-          <div style="overflow-x: auto;">
-            <table class="history-table" style="font-size: 0.85rem;">
-              <thead>
-                <tr>
-                  <th>Jenis Pesan</th>
-                  <th>Total Leads</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${msgHtml}
-              </tbody>
-            </table>
-          </div>
+        <div class="card">
+          <span class="card-title">${source}</span>
+          <span class="card-value" style="font-size: 1.85rem;">${sourceQty} Leads</span>
+          <span style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">${sourceCount} Recap</span>
+          ${msgHtml}
         </div>
       `;
       sourceContainer.insertAdjacentHTML('beforeend', cardHtml);
@@ -1335,14 +1320,10 @@ function renderDashboard() {
     blockSortedKeys.forEach(block => {
       const bData = blockGroups[block];
       const cardHtml = `
-        <div class="channel-analytics-card" style="background-color: var(--bg-card); border: 1px solid var(--border-color); border-radius: 10px; padding: 1.25rem; margin-bottom: 1rem;">
-          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
-            <div>
-              <span style="font-family: var(--font-title); font-size: 1.05rem; font-weight: 600; color: var(--gold-primary);">${block}</span>
-              <span style="font-size: 0.8rem; color: var(--text-muted); margin-left: 0.5rem;">${bData.count} Recap</span>
-            </div>
-            <span class="badge synced" style="font-size: 0.85rem; font-family: var(--font-body); padding: 0.35rem 0.75rem;">${bData.qty} Leads</span>
-          </div>
+        <div class="card">
+          <span class="card-title">${block}</span>
+          <span class="card-value" style="font-size: 1.85rem;">${bData.qty} Leads</span>
+          <span style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">${bData.count} Recap</span>
         </div>
       `;
       blockContainer.insertAdjacentHTML('beforeend', cardHtml);
@@ -1375,14 +1356,10 @@ function renderDashboard() {
     mqlSortedKeys.forEach(mql => {
       const mData = mqlGroups[mql];
       const cardHtml = `
-        <div class="channel-analytics-card" style="background-color: var(--bg-card); border: 1px solid var(--border-color); border-radius: 10px; padding: 1.25rem; margin-bottom: 1rem;">
-          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
-            <div>
-              <span style="font-family: var(--font-title); font-size: 1.05rem; font-weight: 600; color: var(--gold-primary);">${mql}</span>
-              <span style="font-size: 0.8rem; color: var(--text-muted); margin-left: 0.5rem;">${mData.count} Recap</span>
-            </div>
-            <span class="badge synced" style="font-size: 0.85rem; font-family: var(--font-body); padding: 0.35rem 0.75rem;">${mData.qty} Leads</span>
-          </div>
+        <div class="card">
+          <span class="card-title">${mql}</span>
+          <span class="card-value" style="font-size: 1.85rem;">${mData.qty} Leads</span>
+          <span style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">${mData.count} Recap</span>
         </div>
       `;
       mqlContainer.insertAdjacentHTML('beforeend', cardHtml);
