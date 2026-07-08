@@ -295,7 +295,9 @@
         <div class="table-header-bar" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
           <h2 style="font-family: var(--font-title); font-size: 1.1rem; font-weight: 600; margin: 0;">Riwayat Rekapitulasi Leads</h2>
           <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
-            <input type="date" id="history-filter-date" class="filter-input" onchange="filterHistoryTable()" title="Filter Tanggal">
+            <input type="date" id="history-filter-start" class="filter-input" onchange="filterHistoryTable()" title="Tanggal Awal">
+            <span style="color: var(--text-muted); font-size: 0.85rem;">s/d</span>
+            <input type="date" id="history-filter-end" class="filter-input" onchange="filterHistoryTable()" title="Tanggal Akhir">
             <button class="btn-secondary" onclick="resetHistoryDateFilter()" style="padding: 0.5rem 1rem; font-size: 0.85rem;">Hari Ini</button>
             <input type="text" id="search-history" class="table-search-input" placeholder="Cari Sales, ID, atau Sumber..." oninput="filterHistoryTable()" style="width: 200px; margin: 0;">
           </div>
