@@ -9,6 +9,11 @@ let validationOptions = { sales: [], channels: [], sources: [], messages: [], bl
 let syncStatusGlobal = { isOnline: false, isSyncing: false, pendingCount: 0 };
 let selectedSalesDashboard = 'Semua Sales';
 
+// State Pagination Riwayat
+let historyCurrentPage = 1;
+const historyItemsPerPage = 50;
+let historyFilteredLeads = [];
+
 document.addEventListener('DOMContentLoaded', async () => {
   // 1. Inisialisasi Database
   try {
@@ -860,7 +865,11 @@ function resetHistoryDateFilter(triggerRender = true) {
   const tzOffset = today.getTimezoneOffset() * 60000;
   const localDateStr = (new Date(today - tzOffset)).toISOString().split('T')[0];
   
-  document.getElementById('history-filter-date').value = localDateStr;
+  const startInput = document.getElementById('history-filter-start');
+  const endInput = document.getElementById('history-filter-end');
+  
+  if (startInput) startInput.value = localDateStr;
+  if (endInput) endInput.value = localDateStr;
   
   if (triggerRender) {
     filterHistoryTable();
@@ -872,13 +881,19 @@ function resetHistoryDateFilter(triggerRender = true) {
  */
 function filterHistoryTable() {
   const query = document.getElementById('search-history').value.toLowerCase().trim();
-  const dateQuery = document.getElementById('history-filter-date').value; // format: YYYY-MM-DD
+  const startDateStr = document.getElementById('history-filter-start')?.value; // format: YYYY-MM-DD
+  const endDateStr = document.getElementById('history-filter-end')?.value; // format: YYYY-MM-DD
   
   historyFilteredLeads = currentLeads.filter(lead => {
-    // Filter by date (match the YYYY-MM-DD prefix of Tanggal Leads)
+    // Filter by date range (compare YYYY-MM-DD)
     let matchDate = true;
-    if (dateQuery) {
-      matchDate = lead['Tanggal Leads'].startsWith(dateQuery);
+    const leadDateStr = (lead['Tanggal Leads'] || '').split(' ')[0]; // Extract YYYY-MM-DD part
+    
+    if (startDateStr && leadDateStr < startDateStr) {
+      matchDate = false;
+    }
+    if (endDateStr && leadDateStr > endDateStr) {
+      matchDate = false;
     }
     
     // Filter by search text
