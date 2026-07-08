@@ -292,9 +292,13 @@
 
       <!-- Tabel Riwayat leads -->
       <div class="section-panel" style="background-color: var(--bg-panel);">
-        <div class="table-header-bar">
-          <h2 style="font-family: var(--font-title); font-size: 1.1rem; font-weight: 600;">Riwayat Rekapitulasi Leads</h2>
-          <input type="text" id="search-history" class="table-search-input" placeholder="Cari Sales, ID, atau Sumber..." oninput="filterHistoryTable()">
+        <div class="table-header-bar" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+          <h2 style="font-family: var(--font-title); font-size: 1.1rem; font-weight: 600; margin: 0;">Riwayat Rekapitulasi Leads</h2>
+          <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+            <input type="date" id="history-filter-date" class="filter-input" onchange="filterHistoryTable()" title="Filter Tanggal">
+            <button class="btn-secondary" onclick="resetHistoryDateFilter()" style="padding: 0.5rem 1rem; font-size: 0.85rem;">Hari Ini</button>
+            <input type="text" id="search-history" class="table-search-input" placeholder="Cari Sales, ID, atau Sumber..." oninput="filterHistoryTable()" style="width: 200px; margin: 0;">
+          </div>
         </div>
         <div style="overflow-x: auto;">
           <table class="history-table">
@@ -318,6 +322,18 @@
             </tbody>
           </table>
         </div>
+        
+        <!-- Pagination Controls -->
+        <div id="history-pagination-container" style="display: flex; justify-content: space-between; align-items: center; padding-top: 1rem; border-top: 1px solid var(--border-color); margin-top: 1rem;">
+          <div style="font-size: 0.85rem; color: var(--text-muted);" id="pagination-info">
+            Menampilkan 0-0 dari 0 data
+          </div>
+          <div style="display: flex; gap: 0.5rem;" id="pagination-buttons">
+            <button class="btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.85rem;" onclick="changeHistoryPage(-1)" id="btn-prev-page">Prev</button>
+            <button class="btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.85rem;" onclick="changeHistoryPage(1)" id="btn-next-page">Next</button>
+          </div>
+        </div>
+
       </div>
     </section>
 
