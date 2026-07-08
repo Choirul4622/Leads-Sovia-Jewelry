@@ -27,8 +27,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   document.getElementById('gas-url-input').value = savedUrl;
 
-  // 3. Set Filter Tanggal Dashboard ke Hari Ini secara default
+  // 3. Set Filter Tanggal secara default
   setDefaultDashboardDates();
+  resetHistoryDateFilter(false); // Init without triggering render yet
 
   // 4. Inisialisasi Event Listener Sinkronisasi
   window.soviaSync.onStatusChange((status) => {
@@ -70,7 +71,7 @@ async function loadLocalDataAndRefreshUI() {
 
   // Rerender seluruh komponen UI
   renderDropdownSelectors();
-  renderHistoryTable();
+  filterHistoryTable();
   renderDashboard();
   renderValidationLists();
 }
@@ -754,20 +755,26 @@ function resetLeadForm() {
 /**
  * Mengisi tabel riwayat leads
  */
-async function renderHistoryTable(leadsToRender = currentLeads) {
+async function renderHistoryTable() {
   const tbody = document.getElementById('history-table-body');
   tbody.innerHTML = '';
 
-  if (leadsToRender.length === 0) {
+  if (historyFilteredLeads.length === 0) {
     tbody.innerHTML = `<tr><td colspan="11" class="no-data-msg">Tidak ada data rekapitulasi leads ditemukan.</td></tr>`;
+    updatePaginationUI();
     return;
   }
+
+  // Hitung indeks data berdasarkan halaman aktif
+  const startIndex = (historyCurrentPage - 1) * historyItemsPerPage;
+  const endIndex = startIndex + historyItemsPerPage;
+  const displayLeads = historyFilteredLeads.slice(startIndex, endIndex);
 
   // Muat data antrean untuk mencocokkan status sinkronisasi
   const queue = await window.soviaDb.getQueue();
   const pendingIds = new Set(queue.filter(q => q.action !== 'update_options').map(q => q.id));
 
-  leadsToRender.forEach(lead => {
+  displayLeads.forEach(lead => {
     const isPending = pendingIds.has(lead['ID Leads']);
     
     // Badge status sync
@@ -807,33 +814,93 @@ async function renderHistoryTable(leadsToRender = currentLeads) {
       </tr>
     `;
   });
+
+  updatePaginationUI();
 }
 
 /**
- * Melakukan filter pencarian pada tabel riwayat
+ * Update kontrol pagination UI
+ */
+function updatePaginationUI() {
+  const totalItems = historyFilteredLeads.length;
+  const totalPages = Math.ceil(totalItems / historyItemsPerPage) || 1;
+  const startIndex = totalItems === 0 ? 0 : ((historyCurrentPage - 1) * historyItemsPerPage) + 1;
+  const endIndex = Math.min((historyCurrentPage - 1) * historyItemsPerPage + historyItemsPerPage, totalItems);
+
+  const infoEl = document.getElementById('pagination-info');
+  if (infoEl) {
+    infoEl.innerText = `Menampilkan ${startIndex}-${endIndex} dari total ${totalItems} data`;
+  }
+  
+  const btnPrev = document.getElementById('btn-prev-page');
+  const btnNext = document.getElementById('btn-next-page');
+
+  if (btnPrev) btnPrev.disabled = historyCurrentPage <= 1;
+  if (btnNext) btnNext.disabled = historyCurrentPage >= totalPages;
+}
+
+/**
+ * Ganti halaman pagination tabel riwayat
+ */
+function changeHistoryPage(direction) {
+  const totalPages = Math.ceil(historyFilteredLeads.length / historyItemsPerPage) || 1;
+  historyCurrentPage += direction;
+  
+  if (historyCurrentPage < 1) historyCurrentPage = 1;
+  if (historyCurrentPage > totalPages) historyCurrentPage = totalPages;
+  
+  renderHistoryTable();
+}
+
+/**
+ * Mereset filter tanggal riwayat kembali ke hari ini
+ */
+function resetHistoryDateFilter(triggerRender = true) {
+  const today = new Date();
+  const tzOffset = today.getTimezoneOffset() * 60000;
+  const localDateStr = (new Date(today - tzOffset)).toISOString().split('T')[0];
+  
+  document.getElementById('history-filter-date').value = localDateStr;
+  
+  if (triggerRender) {
+    filterHistoryTable();
+  }
+}
+
+/**
+ * Melakukan filter pencarian (teks & tanggal) pada tabel riwayat
  */
 function filterHistoryTable() {
   const query = document.getElementById('search-history').value.toLowerCase().trim();
+  const dateQuery = document.getElementById('history-filter-date').value; // format: YYYY-MM-DD
   
-  if (!query) {
-    renderHistoryTable(currentLeads);
-    return;
-  }
-
-  const filtered = currentLeads.filter(lead => {
-    return (
-      lead['ID Leads'].toLowerCase().includes(query) ||
-      lead['Nama Sales'].toLowerCase().includes(query) ||
-      (lead['Sumber Channel'] || '').toLowerCase().includes(query) ||
-      (lead['Sumber Leads'] || '').toLowerCase().includes(query) ||
-      (lead['Jenis Pesan'] || '').toLowerCase().includes(query) ||
-      (lead['Block Lose'] || '').toLowerCase().includes(query) ||
-      (lead['MQL'] || '').toLowerCase().includes(query) ||
-      lead['Tanggal Leads'].toLowerCase().includes(query)
-    );
+  historyFilteredLeads = currentLeads.filter(lead => {
+    // Filter by date (match the YYYY-MM-DD prefix of Tanggal Leads)
+    let matchDate = true;
+    if (dateQuery) {
+      matchDate = lead['Tanggal Leads'].startsWith(dateQuery);
+    }
+    
+    // Filter by search text
+    let matchText = true;
+    if (query) {
+      matchText = (
+        lead['ID Leads'].toLowerCase().includes(query) ||
+        lead['Nama Sales'].toLowerCase().includes(query) ||
+        (lead['Sumber Channel'] || '').toLowerCase().includes(query) ||
+        (lead['Sumber Leads'] || '').toLowerCase().includes(query) ||
+        (lead['Jenis Pesan'] || '').toLowerCase().includes(query) ||
+        (lead['Block Lose'] || '').toLowerCase().includes(query) ||
+        (lead['MQL'] || '').toLowerCase().includes(query)
+      );
+    }
+    
+    return matchDate && matchText;
   });
 
-  renderHistoryTable(filtered);
+  // Reset page to 1 on new filter
+  historyCurrentPage = 1;
+  renderHistoryTable();
 }
 
 /* ==========================================================================
