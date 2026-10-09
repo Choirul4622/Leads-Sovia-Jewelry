@@ -233,9 +233,30 @@ function updateRemoveButtonsVisibility(containerId, rowClass, btnClass) {
 }
 
 /**
+ * Menambahkan baris input kontak ke dalam baris rekapitulasi leads tertentu
+ */
+function addContactToRow(rowId, nama = '', hp = '') {
+  const container = document.getElementById(`contacts-container-${rowId}`);
+  if (!container) return;
+  
+  const contactId = `contact-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+  
+  const html = `
+    <div class="contact-row" id="${contactId}" style="display: flex; gap: 0.5rem; align-items: center;">
+      <input type="text" class="form-control contact-nama" placeholder="Nama" value="${nama}" style="padding: 0.4rem 0.6rem; font-size: 0.85rem;">
+      <input type="text" class="form-control contact-hp" placeholder="No. HP" value="${hp}" style="padding: 0.4rem 0.6rem; font-size: 0.85rem;">
+      <button type="button" class="btn-action delete" onclick="document.getElementById('${contactId}').remove()" title="Hapus Kontak" style="padding: 0.25rem;">
+        <svg viewBox="0 0 24 24" style="width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2;"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+    </div>
+  `;
+  container.insertAdjacentHTML('beforeend', html);
+}
+
+/**
  * Menambahkan satu baris item pada form rekapitulasi leads
  */
-function addLeadItemRow(sourceVal = '', messageVal = '', qtyVal = 1) {
+function addLeadItemRow(sourceVal = '', messageVal = '', qtyVal = 1, contacts = []) {
   const container = document.getElementById('leads-items-container');
   if (!container) return;
 
@@ -253,28 +274,41 @@ function addLeadItemRow(sourceVal = '', messageVal = '', qtyVal = 1) {
 
   const rowHtml = `
     <div class="lead-item-row" id="${rowId}">
-      <div class="form-group">
+      <div class="form-group" style="align-self: flex-start;">
         <label>Sumber Leads</label>
         <select class="form-control lead-item-source">
           ${sourceOptionsHtml}
         </select>
       </div>
-      <div class="form-group">
+      <div class="form-group" style="align-self: flex-start;">
         <label>Jenis Pesan</label>
         <select class="form-control lead-item-message">
           ${messageOptionsHtml}
         </select>
       </div>
-      <div class="form-group">
-        <label>Qty / Jumlah</label>
-        <input type="number" class="form-control lead-item-qty" min="1" value="${qtyVal}">
+      <div class="form-group" style="align-self: flex-start;">
+        <label style="display: flex; justify-content: space-between; align-items: center;">
+          Data Kontak
+          <button type="button" class="btn-action edit" onclick="addContactToRow('${rowId}')" title="Tambah Kontak" style="padding: 2px 6px; font-size: 11px; display: inline-flex; align-items: center; background: rgba(212,175,55,0.1); border-radius: 4px; border: 1px solid rgba(212,175,55,0.3);">+ Tambah</button>
+        </label>
+        <div id="contacts-container-${rowId}" class="contacts-container" style="display: flex; flex-direction: column; gap: 0.5rem; max-height: 140px; overflow-y: auto; padding-right: 0.2rem;">
+        </div>
       </div>
-      <button type="button" class="btn-action delete btn-remove-item-row" onclick="removeLeadItemRow('${rowId}')" style="height: 42px; width: 42px; display: flex; align-items: center; justify-content: center; background-color: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 6px;" title="Hapus Baris">
+      <button type="button" class="btn-action delete btn-remove-item-row" onclick="removeLeadItemRow('${rowId}')" style="height: 42px; width: 42px; display: flex; align-items: center; justify-content: center; background-color: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 6px; align-self: flex-start; margin-top: 24px;" title="Hapus Baris">
         <svg viewBox="0 0 24 24" style="width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2;"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
       </button>
     </div>
   `;
   container.insertAdjacentHTML('beforeend', rowHtml);
+  
+  if (contacts && contacts.length > 0) {
+    contacts.forEach(c => addContactToRow(rowId, c.nama, c.hp));
+  } else {
+    for (let i = 0; i < qtyVal; i++) {
+      addContactToRow(rowId);
+    }
+  }
+  
   updateRemoveButtonsVisibility('leads-items-container', 'lead-item-row', 'btn-remove-item-row');
 }
 
@@ -464,7 +498,22 @@ async function handleLeadSubmit(event) {
     rekapRows.forEach((row, i) => {
       const source = row.querySelector('.lead-item-source').value;
       const message = row.querySelector('.lead-item-message').value;
-      const qty = parseInt(row.querySelector('.lead-item-qty').value, 10) || 1;
+      
+      const contactRows = row.querySelectorAll('.contact-row');
+      let contacts = [];
+      let detailString = '';
+      
+      contactRows.forEach(crow => {
+        const nama = crow.querySelector('.contact-nama').value.trim();
+        const hp = crow.querySelector('.contact-hp').value.trim();
+        if (nama || hp) {
+          contacts.push({ nama, hp });
+          detailString += `${nama || '-'} - ${hp || '-'}\n`;
+        }
+      });
+      
+      const qty = contacts.length > 0 ? contacts.length : 1;
+      
       if (source || message) {
         rowsToSave.push({
           type: 'rekap',
@@ -474,7 +523,8 @@ async function handleLeadSubmit(event) {
             'Jenis Pesan': message || '-',
             'Block Lose': '-',
             'MQL': '-',
-            'Qty': qty
+            'Qty': qty,
+            'Detail Kontak': detailString.trim() || '-'
           }
         });
       }
@@ -494,7 +544,8 @@ async function handleLeadSubmit(event) {
             'Jenis Pesan': '-',
             'Block Lose': block,
             'MQL': '-',
-            'Qty': qty
+            'Qty': qty,
+            'Detail Kontak': '-'
           }
         });
       }
@@ -514,7 +565,8 @@ async function handleLeadSubmit(event) {
             'Jenis Pesan': '-',
             'Block Lose': '-',
             'MQL': mql,
-            'Qty': qty
+            'Qty': qty,
+            'Detail Kontak': '-'
           }
         });
       }
@@ -530,7 +582,8 @@ async function handleLeadSubmit(event) {
           'Jenis Pesan': '-',
           'Block Lose': '-',
           'MQL': '-',
-          'Qty': 1
+          'Qty': 1,
+          'Detail Kontak': '-'
         }
       });
     }
@@ -553,6 +606,7 @@ async function handleLeadSubmit(event) {
         'Block Lose': item.data['Block Lose'],
         'MQL': item.data['MQL'],
         'Qty': item.data['Qty'],
+        'Detail Kontak': item.data['Detail Kontak'],
         'Timestamp Created': new Date().toISOString(),
         'Timestamp Updated': new Date().toISOString(),
         'Status': 'Active'
@@ -574,19 +628,36 @@ async function handleLeadSubmit(event) {
     let block = '-';
     let mql = '-';
     let qty = 1;
+    let detailKontak = '-';
 
     const rekapRow = document.querySelector('.lead-item-row');
     const terhentiRow = document.querySelector('.terhenti-item-row');
     const lamaRow = document.querySelector('.lama-item-row');
+    const rekapSection = document.getElementById('leads-items-container').parentElement;
+    const terhentiSection = document.getElementById('terhenti-items-container').parentElement;
+    const lamaSection = document.getElementById('lama-items-container').parentElement;
 
-    if (rekapRow && rekapRow.style.display !== 'none') {
+    if (rekapRow && rekapSection.style.display !== 'none') {
       source = rekapRow.querySelector('.lead-item-source').value || '-';
       message = rekapRow.querySelector('.lead-item-message').value || '-';
-      qty = parseInt(rekapRow.querySelector('.lead-item-qty').value, 10) || 1;
-    } else if (terhentiRow && terhentiRow.style.display !== 'none') {
+      
+      const contactRows = rekapRow.querySelectorAll('.contact-row');
+      let contacts = [];
+      let detailString = '';
+      contactRows.forEach(crow => {
+        const nama = crow.querySelector('.contact-nama').value.trim();
+        const hp = crow.querySelector('.contact-hp').value.trim();
+        if (nama || hp) {
+          contacts.push({ nama, hp });
+          detailString += `${nama || '-'} - ${hp || '-'}\n`;
+        }
+      });
+      qty = contacts.length > 0 ? contacts.length : 1;
+      detailKontak = detailString.trim() || '-';
+    } else if (terhentiRow && terhentiSection.style.display !== 'none') {
       block = terhentiRow.querySelector('.terhenti-item-block').value || '-';
       qty = parseInt(terhentiRow.querySelector('.terhenti-item-qty').value, 10) || 1;
-    } else if (lamaRow && lamaRow.style.display !== 'none') {
+    } else if (lamaRow && lamaSection.style.display !== 'none') {
       mql = lamaRow.querySelector('.lama-item-mql').value || '-';
       qty = parseInt(lamaRow.querySelector('.lama-item-qty').value, 10) || 1;
     }
@@ -601,6 +672,7 @@ async function handleLeadSubmit(event) {
       'Block Lose': block,
       'MQL': mql,
       'Qty': qty,
+      'Detail Kontak': detailKontak,
       'Timestamp Created': '', // Biarkan server tetap mempertahankan waktu pembuatan asli
       'Timestamp Updated': new Date().toISOString(),
       'Status': 'Active'
@@ -678,7 +750,22 @@ async function editLead(leadId) {
     rekapSection.style.display = 'block';
     terhentiSection.style.display = 'none';
     lamaSection.style.display = 'none';
-    addLeadItemRow(lead['Sumber Leads'], lead['Jenis Pesan'], lead['Qty']);
+    
+    let contacts = [];
+    if (lead['Detail Kontak'] && lead['Detail Kontak'] !== '-') {
+       const lines = lead['Detail Kontak'].split('\n');
+       lines.forEach(line => {
+         const parts = line.split(' - ');
+         if (parts.length >= 1 && line.trim() !== '') {
+            contacts.push({ 
+              nama: parts[0] === '-' ? '' : parts[0].trim(), 
+              hp: (parts[1] && parts[1] !== '-') ? parts[1].trim() : '' 
+            });
+         }
+       });
+    }
+
+    addLeadItemRow(lead['Sumber Leads'], lead['Jenis Pesan'], lead['Qty'], contacts);
   }
 
   // Sembunyikan semua tombol "Tambah Baris" saat mode edit
@@ -765,7 +852,7 @@ async function renderHistoryTable() {
   tbody.innerHTML = '';
 
   if (historyFilteredLeads.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="11" class="no-data-msg">Tidak ada data rekapitulasi leads ditemukan.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="12" class="no-data-msg">Tidak ada data rekapitulasi leads ditemukan.</td></tr>`;
     updatePaginationUI();
     return;
   }
@@ -805,6 +892,7 @@ async function renderHistoryTable() {
         <td>${lead['Block Lose'] || '-'}</td>
         <td>${lead['MQL'] || '-'}</td>
         <td>${lead['Qty']}</td>
+        <td><div style="max-height: 80px; overflow-y: auto; font-size: 0.85rem; white-space: pre-wrap; min-width: 150px;">${lead['Detail Kontak'] || '-'}</div></td>
         <td>${badgeHtml}</td>
         <td style="text-align: center;">
           <div class="btn-action-group">
@@ -1080,9 +1168,6 @@ function resetDashboardFilters() {
 }
 
 /**
- * Mengkalkulasi metrik & merender dashboard secara realtime
- */
-/**
  * Mengubah sales terpilih di dashboard dan merender ulang
  */
 function selectSalesDashboard(salesName) {
@@ -1091,15 +1176,7 @@ function selectSalesDashboard(salesName) {
   showToast(`Menampilkan detail analitik untuk ${salesName}`, 'info');
 }
 
-/**
- * Memilih tanggal harian dari tabel summary untuk memfilter dashboard
- */
-function selectDashboardDate(day) {
-  document.getElementById('filter-start-date').value = day;
-  document.getElementById('filter-end-date').value = day;
-  renderDashboard();
-  showToast(`Menampilkan data untuk tanggal ${day}`, 'info');
-}
+
 
 /**
  * Helper: Merender baris detail leads sales per channel (Sales -> Sumber Leads -> Jenis Pesan -> Total Leads)
