@@ -1184,7 +1184,7 @@ function selectSalesDashboard(salesName) {
  */
 function renderChannelDetailRows(channelLeads) {
   if (!channelLeads || channelLeads.length === 0) {
-    return `<tr><td colspan="4" class="no-data-msg">Tidak ada data leads sales pada channel ini.</td></tr>`;
+    return `<tr><td colspan="5" class="no-data-msg">Tidak ada data leads sales pada channel ini.</td></tr>`;
   }
 
   // Group data by Sales -> Source -> Message Type
@@ -1194,10 +1194,14 @@ function renderChannelDetailRows(channelLeads) {
     const source = lead['Sumber Leads'] || 'Tidak Diketahui';
     const msg = lead['Jenis Pesan'] || 'Tidak Diketahui';
     const qty = parseInt(lead['Qty'], 10) || 0;
+    const kontak = (lead['Detail Kontak'] && lead['Detail Kontak'] !== '-') ? lead['Detail Kontak'] : '';
 
     if (!groups[sales]) groups[sales] = {};
     if (!groups[sales][source]) groups[sales][source] = {};
-    groups[sales][source][msg] = (groups[sales][source][msg] || 0) + qty;
+    if (!groups[sales][source][msg]) groups[sales][source][msg] = { qty: 0, kontak: [] };
+    
+    groups[sales][source][msg].qty += qty;
+    if (kontak) groups[sales][source][msg].kontak.push(kontak);
   });
 
   // Flatten ke list baris
@@ -1208,7 +1212,8 @@ function renderChannelDetailRows(channelLeads) {
     sortedSourceKeys.forEach(source => {
       const sortedMsgKeys = Object.keys(groups[sales][source]).sort();
       sortedMsgKeys.forEach(msg => {
-        rows.push({ sales, source, msg, qty: groups[sales][source][msg] });
+        const item = groups[sales][source][msg];
+        rows.push({ sales, source, msg, qty: item.qty, kontak: item.kontak.join('\n') });
       });
     });
   });
@@ -1250,8 +1255,9 @@ function renderChannelDetailRows(channelLeads) {
     if (sourceSpan[rIdx] > 0) {
       html += `<td rowspan="${sourceSpan[rIdx]}" style="vertical-align: top; border-right: 1px solid var(--border-color);">${row.source}</td>`;
     }
-    html += `<td style="border-right: 1px solid var(--border-color);">${row.msg}</td>`;
-    html += `<td><span style="color: var(--gold-primary); font-weight: 600;">${row.qty} Leads</span></td>`;
+    html += `<td style="vertical-align: top; border-right: 1px solid var(--border-color);">${row.msg}</td>`;
+    html += `<td style="vertical-align: top; border-right: 1px solid var(--border-color);"><span style="color: var(--gold-primary); font-weight: 600;">${row.qty} Leads</span></td>`;
+    html += `<td style="vertical-align: top;"><div style="max-height: 80px; overflow-y: auto; font-size: 0.8rem; white-space: pre-wrap; min-width: 150px;">${row.kontak || '-'}</div></td>`;
     html += '</tr>';
   });
 
@@ -1389,6 +1395,7 @@ function renderDashboard() {
                   <th>Sumber Leads</th>
                   <th>Jenis Pesan</th>
                   <th>Total Leads</th>
+                  <th>Detail Kontak</th>
                 </tr>
               </thead>
               <tbody>
@@ -1544,11 +1551,15 @@ function renderDashboard() {
     const source = lead['Sumber Leads'] || 'Tidak Diketahui';
     const msg = lead['Jenis Pesan'] || 'Tidak Diketahui';
     const qty = parseInt(lead['Qty'], 10) || 0;
+    const kontak = (lead['Detail Kontak'] && lead['Detail Kontak'] !== '-') ? lead['Detail Kontak'] : '';
     
     if (!groups[sales]) groups[sales] = {};
     if (!groups[sales][channel]) groups[sales][channel] = {};
     if (!groups[sales][channel][source]) groups[sales][channel][source] = {};
-    groups[sales][channel][source][msg] = (groups[sales][channel][source][msg] || 0) + qty;
+    if (!groups[sales][channel][source][msg]) groups[sales][channel][source][msg] = { qty: 0, kontak: [] };
+    
+    groups[sales][channel][source][msg].qty += qty;
+    if (kontak) groups[sales][channel][source][msg].kontak.push(kontak);
   });
 
   // Flatten the groups to a list of rows
@@ -1561,12 +1572,14 @@ function renderDashboard() {
       sortedSourceKeys.forEach(source => {
         const sortedMsgKeys = Object.keys(groups[sales][channel][source]).sort();
         sortedMsgKeys.forEach(msg => {
+          const item = groups[sales][channel][source][msg];
           rows.push({
             sales,
             channel,
             source,
             msg,
-            qty: groups[sales][channel][source][msg]
+            qty: item.qty,
+            kontak: item.kontak.join('\n')
           });
         });
       });
@@ -1625,7 +1638,7 @@ function renderDashboard() {
   unifiedTbody.innerHTML = '';
 
   if (rows.length === 0) {
-    unifiedTbody.innerHTML = `<tr><td colspan="5" class="no-data-msg">Tidak ada data rekapitulasi leads untuk range ini.</td></tr>`;
+    unifiedTbody.innerHTML = `<tr><td colspan="6" class="no-data-msg">Tidak ada data rekapitulasi leads untuk range ini.</td></tr>`;
   } else {
     rows.forEach((row, rIdx) => {
       let rowHtml = '<tr>';
@@ -1638,8 +1651,9 @@ function renderDashboard() {
       if (sourceSpan[rIdx] > 0) {
         rowHtml += `<td rowspan="${sourceSpan[rIdx]}" style="vertical-align: top; border-right: 1px solid var(--border-color);">${row.source}</td>`;
       }
-      rowHtml += `<td style="border-right: 1px solid var(--border-color);">${row.msg}</td>`;
-      rowHtml += `<td><span style="color: var(--gold-primary); font-weight: 600;">${row.qty} Leads</span></td>`;
+      rowHtml += `<td style="vertical-align: top; border-right: 1px solid var(--border-color);">${row.msg}</td>`;
+      rowHtml += `<td style="vertical-align: top; border-right: 1px solid var(--border-color);"><span style="color: var(--gold-primary); font-weight: 600;">${row.qty} Leads</span></td>`;
+      rowHtml += `<td style="vertical-align: top;"><div style="max-height: 80px; overflow-y: auto; font-size: 0.8rem; white-space: pre-wrap; min-width: 150px;">${row.kontak || '-'}</div></td>`;
       rowHtml += '</tr>';
       unifiedTbody.innerHTML += rowHtml;
     });
