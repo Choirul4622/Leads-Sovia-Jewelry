@@ -287,12 +287,12 @@ function addLeadItemRow(sourceVal = '', messageVal = '', qtyVal = 1, contacts = 
         </select>
       </div>
       <div class="form-group" style="align-self: flex-start;">
-        <label style="display: flex; justify-content: space-between; align-items: center;">
-          Data Kontak
-          <button type="button" class="btn-action edit" onclick="addContactToRow('${rowId}')" title="Tambah Kontak" style="padding: 2px 6px; font-size: 11px; display: inline-flex; align-items: center; background: rgba(212,175,55,0.1); border-radius: 4px; border: 1px solid rgba(212,175,55,0.3);">+ Tambah</button>
-        </label>
-        <div id="contacts-container-${rowId}" class="contacts-container" style="display: flex; flex-direction: column; gap: 0.5rem; max-height: 140px; overflow-y: auto; padding-right: 0.2rem;">
+        <label>Data Kontak</label>
+        <div id="contacts-container-${rowId}" class="contacts-container" style="display: flex; flex-direction: column; gap: 0.5rem; max-height: 140px; overflow-y: auto; padding-right: 0.2rem; margin-bottom: 0.5rem;">
         </div>
+        <button type="button" class="btn-action edit" onclick="addContactToRow('${rowId}')" title="Tambah Kontak" style="width: 100%; padding: 6px; font-size: 11px; font-weight: 600; display: flex; justify-content: center; align-items: center; background: rgba(212,175,55,0.1); border-radius: 6px; border: 1px dashed rgba(212,175,55,0.6); color: var(--gold-primary); cursor: pointer; transition: all 0.2s;">
+          + Tambah Data Kontak
+        </button>
       </div>
       <button type="button" class="btn-action delete btn-remove-item-row" onclick="removeLeadItemRow('${rowId}')" style="height: 42px; width: 42px; display: flex; align-items: center; justify-content: center; background-color: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 6px; align-self: flex-start; margin-top: 24px;" title="Hapus Baris">
         <svg viewBox="0 0 24 24" style="width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2;"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
