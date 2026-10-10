@@ -233,30 +233,9 @@ function updateRemoveButtonsVisibility(containerId, rowClass, btnClass) {
 }
 
 /**
- * Menambahkan baris input kontak ke dalam baris rekapitulasi leads tertentu
- */
-function addContactToRow(rowId, nama = '', hp = '') {
-  const container = document.getElementById(`contacts-container-${rowId}`);
-  if (!container) return;
-  
-  const contactId = `contact-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
-  
-  const html = `
-    <div class="contact-row" id="${contactId}" style="display: flex; gap: 0.5rem; align-items: center;">
-      <input type="text" class="form-control contact-nama" placeholder="Nama" value="${nama}" style="padding: 0.4rem 0.6rem; font-size: 0.85rem;">
-      <input type="text" class="form-control contact-hp" placeholder="No. HP" value="${hp}" style="padding: 0.4rem 0.6rem; font-size: 0.85rem;">
-      <button type="button" class="btn-action delete" onclick="document.getElementById('${contactId}').remove()" title="Hapus Kontak" style="padding: 0.25rem;">
-        <svg viewBox="0 0 24 24" style="width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2;"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
-      </button>
-    </div>
-  `;
-  container.insertAdjacentHTML('beforeend', html);
-}
-
-/**
  * Menambahkan satu baris item pada form rekapitulasi leads
  */
-function addLeadItemRow(sourceVal = '', messageVal = '', qtyVal = 1, contacts = []) {
+function addLeadItemRow(sourceVal = '', messageVal = '', qtyVal = 1) {
   const container = document.getElementById('leads-items-container');
   if (!container) return;
 
@@ -274,41 +253,28 @@ function addLeadItemRow(sourceVal = '', messageVal = '', qtyVal = 1, contacts = 
 
   const rowHtml = `
     <div class="lead-item-row" id="${rowId}">
-      <div class="form-group" style="align-self: flex-start;">
+      <div class="form-group">
         <label>Sumber Leads</label>
         <select class="form-control lead-item-source">
           ${sourceOptionsHtml}
         </select>
       </div>
-      <div class="form-group" style="align-self: flex-start;">
+      <div class="form-group">
         <label>Jenis Pesan</label>
         <select class="form-control lead-item-message">
           ${messageOptionsHtml}
         </select>
       </div>
-      <div class="form-group" style="align-self: flex-start;">
-        <label>Data Kontak</label>
-        <div id="contacts-container-${rowId}" class="contacts-container" style="display: flex; flex-direction: column; gap: 0.5rem; max-height: 140px; overflow-y: auto; padding-right: 0.2rem; margin-bottom: 0.5rem;">
-        </div>
-        <button type="button" class="btn-action edit" onclick="addContactToRow('${rowId}')" title="Tambah Kontak" style="width: 100%; padding: 6px; font-size: 11px; font-weight: 600; display: flex; justify-content: center; align-items: center; background: rgba(212,175,55,0.1); border-radius: 6px; border: 1px dashed rgba(212,175,55,0.6); color: var(--gold-primary); cursor: pointer; transition: all 0.2s;">
-          + Tambah Data Kontak
-        </button>
+      <div class="form-group">
+        <label>Qty / Jumlah</label>
+        <input type="number" class="form-control lead-item-qty" min="1" value="${qtyVal}">
       </div>
-      <button type="button" class="btn-action delete btn-remove-item-row" onclick="removeLeadItemRow('${rowId}')" style="height: 42px; width: 42px; display: flex; align-items: center; justify-content: center; background-color: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 6px; align-self: flex-start; margin-top: 24px;" title="Hapus Baris">
+      <button type="button" class="btn-action delete btn-remove-item-row" onclick="removeLeadItemRow('${rowId}')" style="height: 42px; width: 42px; display: flex; align-items: center; justify-content: center; background-color: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 6px;" title="Hapus Baris">
         <svg viewBox="0 0 24 24" style="width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2;"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
       </button>
     </div>
   `;
   container.insertAdjacentHTML('beforeend', rowHtml);
-  
-  if (contacts && contacts.length > 0) {
-    contacts.forEach(c => addContactToRow(rowId, c.nama, c.hp));
-  } else {
-    for (let i = 0; i < qtyVal; i++) {
-      addContactToRow(rowId);
-    }
-  }
-  
   updateRemoveButtonsVisibility('leads-items-container', 'lead-item-row', 'btn-remove-item-row');
 }
 
@@ -498,22 +464,7 @@ async function handleLeadSubmit(event) {
     rekapRows.forEach((row, i) => {
       const source = row.querySelector('.lead-item-source').value;
       const message = row.querySelector('.lead-item-message').value;
-      
-      const contactRows = row.querySelectorAll('.contact-row');
-      let contacts = [];
-      let detailString = '';
-      
-      contactRows.forEach(crow => {
-        const nama = crow.querySelector('.contact-nama').value.trim();
-        const hp = crow.querySelector('.contact-hp').value.trim();
-        if (nama || hp) {
-          contacts.push({ nama, hp });
-          detailString += `${nama || '-'} - ${hp || '-'}\n`;
-        }
-      });
-      
-      const qty = contacts.length > 0 ? contacts.length : 1;
-      
+      const qty = parseInt(row.querySelector('.lead-item-qty').value, 10) || 1;
       if (source || message) {
         rowsToSave.push({
           type: 'rekap',
@@ -523,8 +474,7 @@ async function handleLeadSubmit(event) {
             'Jenis Pesan': message || '-',
             'Block Lose': '-',
             'MQL': '-',
-            'Qty': qty,
-            'Detail Kontak': detailString.trim() || '-'
+            'Qty': qty
           }
         });
       }
@@ -544,8 +494,7 @@ async function handleLeadSubmit(event) {
             'Jenis Pesan': '-',
             'Block Lose': block,
             'MQL': '-',
-            'Qty': qty,
-            'Detail Kontak': '-'
+            'Qty': qty
           }
         });
       }
@@ -565,8 +514,7 @@ async function handleLeadSubmit(event) {
             'Jenis Pesan': '-',
             'Block Lose': '-',
             'MQL': mql,
-            'Qty': qty,
-            'Detail Kontak': '-'
+            'Qty': qty
           }
         });
       }
@@ -582,8 +530,7 @@ async function handleLeadSubmit(event) {
           'Jenis Pesan': '-',
           'Block Lose': '-',
           'MQL': '-',
-          'Qty': 1,
-          'Detail Kontak': '-'
+          'Qty': 1
         }
       });
     }
@@ -606,7 +553,6 @@ async function handleLeadSubmit(event) {
         'Block Lose': item.data['Block Lose'],
         'MQL': item.data['MQL'],
         'Qty': item.data['Qty'],
-        'Detail Kontak': item.data['Detail Kontak'],
         'Timestamp Created': new Date().toISOString(),
         'Timestamp Updated': new Date().toISOString(),
         'Status': 'Active'
@@ -628,36 +574,19 @@ async function handleLeadSubmit(event) {
     let block = '-';
     let mql = '-';
     let qty = 1;
-    let detailKontak = '-';
 
     const rekapRow = document.querySelector('.lead-item-row');
     const terhentiRow = document.querySelector('.terhenti-item-row');
     const lamaRow = document.querySelector('.lama-item-row');
-    const rekapSection = document.getElementById('leads-items-container').parentElement;
-    const terhentiSection = document.getElementById('terhenti-items-container').parentElement;
-    const lamaSection = document.getElementById('lama-items-container').parentElement;
 
-    if (rekapRow && rekapSection.style.display !== 'none') {
+    if (rekapRow && rekapRow.style.display !== 'none') {
       source = rekapRow.querySelector('.lead-item-source').value || '-';
       message = rekapRow.querySelector('.lead-item-message').value || '-';
-      
-      const contactRows = rekapRow.querySelectorAll('.contact-row');
-      let contacts = [];
-      let detailString = '';
-      contactRows.forEach(crow => {
-        const nama = crow.querySelector('.contact-nama').value.trim();
-        const hp = crow.querySelector('.contact-hp').value.trim();
-        if (nama || hp) {
-          contacts.push({ nama, hp });
-          detailString += `${nama || '-'} - ${hp || '-'}\n`;
-        }
-      });
-      qty = contacts.length > 0 ? contacts.length : 1;
-      detailKontak = detailString.trim() || '-';
-    } else if (terhentiRow && terhentiSection.style.display !== 'none') {
+      qty = parseInt(rekapRow.querySelector('.lead-item-qty').value, 10) || 1;
+    } else if (terhentiRow && terhentiRow.style.display !== 'none') {
       block = terhentiRow.querySelector('.terhenti-item-block').value || '-';
       qty = parseInt(terhentiRow.querySelector('.terhenti-item-qty').value, 10) || 1;
-    } else if (lamaRow && lamaSection.style.display !== 'none') {
+    } else if (lamaRow && lamaRow.style.display !== 'none') {
       mql = lamaRow.querySelector('.lama-item-mql').value || '-';
       qty = parseInt(lamaRow.querySelector('.lama-item-qty').value, 10) || 1;
     }
@@ -672,7 +601,6 @@ async function handleLeadSubmit(event) {
       'Block Lose': block,
       'MQL': mql,
       'Qty': qty,
-      'Detail Kontak': detailKontak,
       'Timestamp Created': '', // Biarkan server tetap mempertahankan waktu pembuatan asli
       'Timestamp Updated': new Date().toISOString(),
       'Status': 'Active'
@@ -750,22 +678,7 @@ async function editLead(leadId) {
     rekapSection.style.display = 'block';
     terhentiSection.style.display = 'none';
     lamaSection.style.display = 'none';
-    
-    let contacts = [];
-    if (lead['Detail Kontak'] && lead['Detail Kontak'] !== '-') {
-       const lines = lead['Detail Kontak'].split('\n');
-       lines.forEach(line => {
-         const parts = line.split(' - ');
-         if (parts.length >= 1 && line.trim() !== '') {
-            contacts.push({ 
-              nama: parts[0] === '-' ? '' : parts[0].trim(), 
-              hp: (parts[1] && parts[1] !== '-') ? parts[1].trim() : '' 
-            });
-         }
-       });
-    }
-
-    addLeadItemRow(lead['Sumber Leads'], lead['Jenis Pesan'], lead['Qty'], contacts);
+    addLeadItemRow(lead['Sumber Leads'], lead['Jenis Pesan'], lead['Qty']);
   }
 
   // Sembunyikan semua tombol "Tambah Baris" saat mode edit
@@ -852,7 +765,7 @@ async function renderHistoryTable() {
   tbody.innerHTML = '';
 
   if (historyFilteredLeads.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="12" class="no-data-msg">Tidak ada data rekapitulasi leads ditemukan.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="11" class="no-data-msg">Tidak ada data rekapitulasi leads ditemukan.</td></tr>`;
     updatePaginationUI();
     return;
   }
@@ -892,7 +805,6 @@ async function renderHistoryTable() {
         <td>${lead['Block Lose'] || '-'}</td>
         <td>${lead['MQL'] || '-'}</td>
         <td>${lead['Qty']}</td>
-        <td><div style="max-height: 80px; overflow-y: auto; font-size: 0.85rem; white-space: pre-wrap; min-width: 150px;">${lead['Detail Kontak'] || '-'}</div></td>
         <td>${badgeHtml}</td>
         <td style="text-align: center;">
           <div class="btn-action-group">
@@ -1168,6 +1080,9 @@ function resetDashboardFilters() {
 }
 
 /**
+ * Mengkalkulasi metrik & merender dashboard secara realtime
+ */
+/**
  * Mengubah sales terpilih di dashboard dan merender ulang
  */
 function selectSalesDashboard(salesName) {
@@ -1176,7 +1091,15 @@ function selectSalesDashboard(salesName) {
   showToast(`Menampilkan detail analitik untuk ${salesName}`, 'info');
 }
 
-
+/**
+ * Memilih tanggal harian dari tabel summary untuk memfilter dashboard
+ */
+function selectDashboardDate(day) {
+  document.getElementById('filter-start-date').value = day;
+  document.getElementById('filter-end-date').value = day;
+  renderDashboard();
+  showToast(`Menampilkan data untuk tanggal ${day}`, 'info');
+}
 
 /**
  * Helper: Merender baris detail leads sales per channel (Sales -> Sumber Leads -> Jenis Pesan -> Total Leads)
@@ -1184,7 +1107,7 @@ function selectSalesDashboard(salesName) {
  */
 function renderChannelDetailRows(channelLeads) {
   if (!channelLeads || channelLeads.length === 0) {
-    return `<tr><td colspan="5" class="no-data-msg">Tidak ada data leads sales pada channel ini.</td></tr>`;
+    return `<tr><td colspan="4" class="no-data-msg">Tidak ada data leads sales pada channel ini.</td></tr>`;
   }
 
   // Group data by Sales -> Source -> Message Type
@@ -1194,14 +1117,10 @@ function renderChannelDetailRows(channelLeads) {
     const source = lead['Sumber Leads'] || 'Tidak Diketahui';
     const msg = lead['Jenis Pesan'] || 'Tidak Diketahui';
     const qty = parseInt(lead['Qty'], 10) || 0;
-    const kontak = (lead['Detail Kontak'] && lead['Detail Kontak'] !== '-') ? lead['Detail Kontak'] : '';
 
     if (!groups[sales]) groups[sales] = {};
     if (!groups[sales][source]) groups[sales][source] = {};
-    if (!groups[sales][source][msg]) groups[sales][source][msg] = { qty: 0, kontak: [] };
-    
-    groups[sales][source][msg].qty += qty;
-    if (kontak) groups[sales][source][msg].kontak.push(kontak);
+    groups[sales][source][msg] = (groups[sales][source][msg] || 0) + qty;
   });
 
   // Flatten ke list baris
@@ -1212,8 +1131,7 @@ function renderChannelDetailRows(channelLeads) {
     sortedSourceKeys.forEach(source => {
       const sortedMsgKeys = Object.keys(groups[sales][source]).sort();
       sortedMsgKeys.forEach(msg => {
-        const item = groups[sales][source][msg];
-        rows.push({ sales, source, msg, qty: item.qty, kontak: item.kontak.join('\n') });
+        rows.push({ sales, source, msg, qty: groups[sales][source][msg] });
       });
     });
   });
@@ -1255,9 +1173,8 @@ function renderChannelDetailRows(channelLeads) {
     if (sourceSpan[rIdx] > 0) {
       html += `<td rowspan="${sourceSpan[rIdx]}" style="vertical-align: top; border-right: 1px solid var(--border-color);">${row.source}</td>`;
     }
-    html += `<td style="vertical-align: top; border-right: 1px solid var(--border-color);">${row.msg}</td>`;
-    html += `<td style="vertical-align: top; border-right: 1px solid var(--border-color);"><span style="color: var(--gold-primary); font-weight: 600;">${row.qty} Leads</span></td>`;
-    html += `<td style="vertical-align: top;"><div style="max-height: 80px; overflow-y: auto; font-size: 0.8rem; white-space: pre-wrap; min-width: 150px;">${row.kontak || '-'}</div></td>`;
+    html += `<td style="border-right: 1px solid var(--border-color);">${row.msg}</td>`;
+    html += `<td><span style="color: var(--gold-primary); font-weight: 600;">${row.qty} Leads</span></td>`;
     html += '</tr>';
   });
 
@@ -1395,7 +1312,6 @@ function renderDashboard() {
                   <th>Sumber Leads</th>
                   <th>Jenis Pesan</th>
                   <th>Total Leads</th>
-                  <th>Detail Kontak</th>
                 </tr>
               </thead>
               <tbody>
@@ -1551,15 +1467,11 @@ function renderDashboard() {
     const source = lead['Sumber Leads'] || 'Tidak Diketahui';
     const msg = lead['Jenis Pesan'] || 'Tidak Diketahui';
     const qty = parseInt(lead['Qty'], 10) || 0;
-    const kontak = (lead['Detail Kontak'] && lead['Detail Kontak'] !== '-') ? lead['Detail Kontak'] : '';
     
     if (!groups[sales]) groups[sales] = {};
     if (!groups[sales][channel]) groups[sales][channel] = {};
     if (!groups[sales][channel][source]) groups[sales][channel][source] = {};
-    if (!groups[sales][channel][source][msg]) groups[sales][channel][source][msg] = { qty: 0, kontak: [] };
-    
-    groups[sales][channel][source][msg].qty += qty;
-    if (kontak) groups[sales][channel][source][msg].kontak.push(kontak);
+    groups[sales][channel][source][msg] = (groups[sales][channel][source][msg] || 0) + qty;
   });
 
   // Flatten the groups to a list of rows
@@ -1572,14 +1484,12 @@ function renderDashboard() {
       sortedSourceKeys.forEach(source => {
         const sortedMsgKeys = Object.keys(groups[sales][channel][source]).sort();
         sortedMsgKeys.forEach(msg => {
-          const item = groups[sales][channel][source][msg];
           rows.push({
             sales,
             channel,
             source,
             msg,
-            qty: item.qty,
-            kontak: item.kontak.join('\n')
+            qty: groups[sales][channel][source][msg]
           });
         });
       });
@@ -1638,7 +1548,7 @@ function renderDashboard() {
   unifiedTbody.innerHTML = '';
 
   if (rows.length === 0) {
-    unifiedTbody.innerHTML = `<tr><td colspan="6" class="no-data-msg">Tidak ada data rekapitulasi leads untuk range ini.</td></tr>`;
+    unifiedTbody.innerHTML = `<tr><td colspan="5" class="no-data-msg">Tidak ada data rekapitulasi leads untuk range ini.</td></tr>`;
   } else {
     rows.forEach((row, rIdx) => {
       let rowHtml = '<tr>';
@@ -1651,9 +1561,8 @@ function renderDashboard() {
       if (sourceSpan[rIdx] > 0) {
         rowHtml += `<td rowspan="${sourceSpan[rIdx]}" style="vertical-align: top; border-right: 1px solid var(--border-color);">${row.source}</td>`;
       }
-      rowHtml += `<td style="vertical-align: top; border-right: 1px solid var(--border-color);">${row.msg}</td>`;
-      rowHtml += `<td style="vertical-align: top; border-right: 1px solid var(--border-color);"><span style="color: var(--gold-primary); font-weight: 600;">${row.qty} Leads</span></td>`;
-      rowHtml += `<td style="vertical-align: top;"><div style="max-height: 80px; overflow-y: auto; font-size: 0.8rem; white-space: pre-wrap; min-width: 150px;">${row.kontak || '-'}</div></td>`;
+      rowHtml += `<td style="border-right: 1px solid var(--border-color);">${row.msg}</td>`;
+      rowHtml += `<td><span style="color: var(--gold-primary); font-weight: 600;">${row.qty} Leads</span></td>`;
       rowHtml += '</tr>';
       unifiedTbody.innerHTML += rowHtml;
     });

@@ -501,9 +501,9 @@ main {
 
 .lead-item-row {
   display: grid;
-  grid-template-columns: 1.5fr 1.5fr 3fr 50px;
+  grid-template-columns: 2fr 2fr 1.2fr 50px;
   gap: 1rem;
-  align-items: flex-start;
+  align-items: flex-end;
   margin-bottom: 1rem;
   animation: fadeIn 0.3s ease-out;
 }
