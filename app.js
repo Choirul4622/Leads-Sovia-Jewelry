@@ -14,6 +14,28 @@ let historyCurrentPage = 1;
 const historyItemsPerPage = 50;
 let historyFilteredLeads = [];
 
+/**
+ * Helper: Sanitasi string untuk mencegah XSS & gangguan syntax HTML
+ */
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
+ * Helper: Ekstrak bagian tanggal YYYY-MM-DD secara konsisten dan aman
+ */
+function getLeadDateOnly(dateVal) {
+  if (!dateVal) return '';
+  const clean = String(dateVal).replace('T', ' ').trim();
+  return clean.split(' ')[0].substring(0, 10);
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   // 1. Inisialisasi Database
   try {
@@ -30,7 +52,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     savedUrl = 'https://script.google.com/macros/s/AKfycbzZYlAh4oe5ZwRJAFNRZ-e31m_opHnxzBM8qDjAvHSj5XZkq-l8nJm5LjFhKLVFDqlkjw/exec';
     localStorage.setItem('sovia_gas_url', savedUrl);
   }
-  document.getElementById('gas-url-input').value = savedUrl;
+  const gasInput = document.getElementById('gas-url-input');
+  if (gasInput) gasInput.value = savedUrl;
 
   // 3. Set Filter Tanggal secara default
   setDefaultDashboardDates();
@@ -48,11 +71,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     showToast('Data diperbarui dan disinkronkan!', 'success');
   });
 
-  // 5. Inisialisasi Form Input Leads
-  resetLeadForm();
-
-  // 6. Muat Data Lokal Pertama Kali
+  // 5. Muat Data Lokal Pertama Kali (agar validationOptions terisi untuk dropdown)
   await loadLocalDataAndRefreshUI();
+
+  // 6. Inisialisasi Form Input Leads
+  resetLeadForm();
 
   // 7. Jika Online, jalankan sinkronisasi awal secara background
   if (navigator.onLine && savedUrl) {
@@ -67,11 +90,13 @@ async function loadLocalDataAndRefreshUI() {
   currentLeads = await window.soviaDb.getLeads();
   validationOptions = await window.soviaDb.getValidationOptions();
 
-  // Urutkan leads berdasarkan tanggal leads terbaru di paling atas
+  // Urutkan leads berdasarkan tanggal leads terbaru di paling atas (aman dari nilai kosong/null)
   currentLeads.sort((a, b) => {
-    const timeA = new Date(a['Tanggal Leads'].replace(' ', 'T')).getTime();
-    const timeB = new Date(b['Tanggal Leads'].replace(' ', 'T')).getTime();
-    return timeB - timeA;
+    const strA = (a['Tanggal Leads'] || '').replace(' ', 'T');
+    const strB = (b['Tanggal Leads'] || '').replace(' ', 'T');
+    const timeA = strA ? new Date(strA).getTime() : 0;
+    const timeB = strB ? new Date(strB).getTime() : 0;
+    return (isNaN(timeB) ? 0 : timeB) - (isNaN(timeA) ? 0 : timeA);
   });
 
   // Rerender seluruh komponen UI
@@ -164,9 +189,14 @@ async function triggerManualSync() {
  */
 function saveGasUrl() {
   const url = document.getElementById('gas-url-input').value.trim();
-  if (url && !url.startsWith('https://script.google.com/')) {
-    showToast('Format URL Google Apps Script tidak valid.', 'error');
-    return;
+  if (url) {
+    if (!url.startsWith('https://script.google.com/')) {
+      showToast('Format URL Google Apps Script tidak valid.', 'error');
+      return;
+    }
+    if (url.includes('/edit')) {
+      showToast('Perhatian: Anda memasukkan URL editor skrip. Pastikan deploy dan gunakan Web App URL (/exec).', 'warning');
+    }
   }
   
   window.soviaSync.setWebAppUrl(url);
@@ -243,12 +273,12 @@ function addLeadItemRow(sourceVal = '', messageVal = '', qtyVal = 1) {
 
   let sourceOptionsHtml = '<option value="">-- Pilih Sumber --</option>';
   (validationOptions.sources || []).forEach(opt => {
-    sourceOptionsHtml += `<option value="${opt}" ${opt === sourceVal ? 'selected' : ''}>${opt}</option>`;
+    sourceOptionsHtml += `<option value="${escapeHtml(opt)}" ${opt === sourceVal ? 'selected' : ''}>${escapeHtml(opt)}</option>`;
   });
 
   let messageOptionsHtml = '<option value="">-- Pilih Jenis Pesan --</option>';
   (validationOptions.messages || []).forEach(opt => {
-    messageOptionsHtml += `<option value="${opt}" ${opt === messageVal ? 'selected' : ''}>${opt}</option>`;
+    messageOptionsHtml += `<option value="${escapeHtml(opt)}" ${opt === messageVal ? 'selected' : ''}>${escapeHtml(opt)}</option>`;
   });
 
   const rowHtml = `
@@ -300,7 +330,7 @@ function addTerhentiRow(blockVal = '', qtyVal = 1) {
 
   let blockOptionsHtml = '<option value="">-- Pilih Block/Lose --</option>';
   (validationOptions.blocks || []).forEach(opt => {
-    blockOptionsHtml += `<option value="${opt}" ${opt === blockVal ? 'selected' : ''}>${opt}</option>`;
+    blockOptionsHtml += `<option value="${escapeHtml(opt)}" ${opt === blockVal ? 'selected' : ''}>${escapeHtml(opt)}</option>`;
   });
 
   const rowHtml = `
@@ -346,7 +376,7 @@ function addLamaRow(mqlVal = '', qtyVal = 1) {
 
   let mqlOptionsHtml = '<option value="">-- Pilih MQL --</option>';
   (validationOptions.mql || []).forEach(opt => {
-    mqlOptionsHtml += `<option value="${opt}" ${opt === mqlVal ? 'selected' : ''}>${opt}</option>`;
+    mqlOptionsHtml += `<option value="${escapeHtml(opt)}" ${opt === mqlVal ? 'selected' : ''}>${escapeHtml(opt)}</option>`;
   });
 
   const rowHtml = `
@@ -387,57 +417,65 @@ function removeLamaRow(rowId) {
 function renderDropdownSelectors() {
   const salesDropdown = document.getElementById('lead-sales');
   const channelDropdown = document.getElementById('lead-channel');
+  if (!salesDropdown || !channelDropdown) return;
 
-  // Bersihkan opsi lama, sisakan placeholder
-  salesDropdown.innerHTML = '<option value="">-- Pilih Sales --</option>';
-  channelDropdown.innerHTML = '<option value="">-- Pilih Channel --</option>';
+  const currentSales = salesDropdown.value;
+  const currentChannel = channelDropdown.value;
 
-  // Isi dengan data lokal
+  // Bersihkan opsi lama, bangun HTML string secara batch
+  let salesHtml = '<option value="">-- Pilih Sales --</option>';
   (validationOptions.sales || []).forEach(opt => {
-    salesDropdown.innerHTML += `<option value="${opt}">${opt}</option>`;
+    salesHtml += `<option value="${escapeHtml(opt)}" ${opt === currentSales ? 'selected' : ''}>${escapeHtml(opt)}</option>`;
   });
+  salesDropdown.innerHTML = salesHtml;
 
+  let channelHtml = '<option value="">-- Pilih Channel --</option>';
   (validationOptions.channels || []).forEach(opt => {
-    channelDropdown.innerHTML += `<option value="${opt}">${opt}</option>`;
+    channelHtml += `<option value="${escapeHtml(opt)}" ${opt === currentChannel ? 'selected' : ''}>${escapeHtml(opt)}</option>`;
   });
+  channelDropdown.innerHTML = channelHtml;
 
   // Isi dropdown di baris dynamic item yang ada (Rekap)
   const sourceDropdowns = document.querySelectorAll('.lead-item-source');
   sourceDropdowns.forEach(dropdown => {
     const currentVal = dropdown.value;
-    dropdown.innerHTML = '<option value="">-- Pilih Sumber --</option>';
+    let html = '<option value="">-- Pilih Sumber --</option>';
     (validationOptions.sources || []).forEach(opt => {
-      dropdown.innerHTML += `<option value="${opt}" ${opt === currentVal ? 'selected' : ''}>${opt}</option>`;
+      html += `<option value="${escapeHtml(opt)}" ${opt === currentVal ? 'selected' : ''}>${escapeHtml(opt)}</option>`;
     });
+    dropdown.innerHTML = html;
   });
 
   const messageDropdowns = document.querySelectorAll('.lead-item-message');
   messageDropdowns.forEach(dropdown => {
     const currentVal = dropdown.value;
-    dropdown.innerHTML = '<option value="">-- Pilih Jenis Pesan --</option>';
+    let html = '<option value="">-- Pilih Jenis Pesan --</option>';
     (validationOptions.messages || []).forEach(opt => {
-      dropdown.innerHTML += `<option value="${opt}" ${opt === currentVal ? 'selected' : ''}>${opt}</option>`;
+      html += `<option value="${escapeHtml(opt)}" ${opt === currentVal ? 'selected' : ''}>${escapeHtml(opt)}</option>`;
     });
+    dropdown.innerHTML = html;
   });
 
   // Isi dropdown Block Lose di Chat Terhenti
   const blockDropdowns = document.querySelectorAll('.terhenti-item-block');
   blockDropdowns.forEach(dropdown => {
     const currentVal = dropdown.value;
-    dropdown.innerHTML = '<option value="">-- Pilih Block/Lose --</option>';
+    let html = '<option value="">-- Pilih Block/Lose --</option>';
     (validationOptions.blocks || []).forEach(opt => {
-      dropdown.innerHTML += `<option value="${opt}" ${opt === currentVal ? 'selected' : ''}>${opt}</option>`;
+      html += `<option value="${escapeHtml(opt)}" ${opt === currentVal ? 'selected' : ''}>${escapeHtml(opt)}</option>`;
     });
+    dropdown.innerHTML = html;
   });
 
   // Isi dropdown MQL di Chat Lama
   const mqlDropdowns = document.querySelectorAll('.lama-item-mql');
   mqlDropdowns.forEach(dropdown => {
     const currentVal = dropdown.value;
-    dropdown.innerHTML = '<option value="">-- Pilih MQL --</option>';
+    let html = '<option value="">-- Pilih MQL --</option>';
     (validationOptions.mql || []).forEach(opt => {
-      dropdown.innerHTML += `<option value="${opt}" ${opt === currentVal ? 'selected' : ''}>${opt}</option>`;
+      html += `<option value="${escapeHtml(opt)}" ${opt === currentVal ? 'selected' : ''}>${escapeHtml(opt)}</option>`;
     });
+    dropdown.innerHTML = html;
   });
 }
 
@@ -451,10 +489,23 @@ async function handleLeadSubmit(event) {
   const idLeads = document.getElementById('lead-id').value;
   
   // Format Tanggal untuk disimpan di DB Sheets (YYYY-MM-DD HH:mm:ss)
-  const inputDateTime = document.getElementById('lead-date').value; // format: 2026-06-15T11:26
-  const formattedDate = inputDateTime.replace('T', ' ') + ':00';
+  const inputDateTime = document.getElementById('lead-date').value;
+  let formattedDate = '';
+  if (inputDateTime) {
+    let clean = inputDateTime.replace('T', ' ');
+    if (clean.length === 16) clean += ':00';
+    formattedDate = clean;
+  } else {
+    formattedDate = new Date().toISOString().replace('T', ' ').substring(0, 19);
+  }
+
   const salesName = document.getElementById('lead-sales').value;
   const channelName = document.getElementById('lead-channel').value;
+
+  if (!salesName || !channelName) {
+    showToast('Harap pilih Nama Sales dan Sumber Channel terlebih dahulu!', 'warning');
+    return;
+  }
 
   if (mode === 'create') {
     const rowsToSave = [];
@@ -462,9 +513,9 @@ async function handleLeadSubmit(event) {
     // 1. Rekapitulasi Leads
     const rekapRows = document.querySelectorAll('.lead-item-row');
     rekapRows.forEach((row, i) => {
-      const source = row.querySelector('.lead-item-source').value;
-      const message = row.querySelector('.lead-item-message').value;
-      const qty = parseInt(row.querySelector('.lead-item-qty').value, 10) || 1;
+      const source = row.querySelector('.lead-item-source')?.value || '';
+      const message = row.querySelector('.lead-item-message')?.value || '';
+      const qty = parseInt(row.querySelector('.lead-item-qty')?.value, 10) || 1;
       if (source || message) {
         rowsToSave.push({
           type: 'rekap',
@@ -483,8 +534,8 @@ async function handleLeadSubmit(event) {
     // 2. Chat Terhenti
     const terhentiRows = document.querySelectorAll('.terhenti-item-row');
     terhentiRows.forEach((row, i) => {
-      const block = row.querySelector('.terhenti-item-block').value;
-      const qty = parseInt(row.querySelector('.terhenti-item-qty').value, 10) || 1;
+      const block = row.querySelector('.terhenti-item-block')?.value || '';
+      const qty = parseInt(row.querySelector('.terhenti-item-qty')?.value, 10) || 1;
       if (block) {
         rowsToSave.push({
           type: 'terhenti',
@@ -503,8 +554,8 @@ async function handleLeadSubmit(event) {
     // 3. Chat Lama
     const lamaRows = document.querySelectorAll('.lama-item-row');
     lamaRows.forEach((row, i) => {
-      const mql = row.querySelector('.lama-item-mql').value;
-      const qty = parseInt(row.querySelector('.lama-item-qty').value, 10) || 1;
+      const mql = row.querySelector('.lama-item-mql')?.value || '';
+      const qty = parseInt(row.querySelector('.lama-item-qty')?.value, 10) || 1;
       if (mql) {
         rowsToSave.push({
           type: 'lama',
@@ -521,18 +572,8 @@ async function handleLeadSubmit(event) {
     });
 
     if (rowsToSave.length === 0) {
-      // Jika sama sekali tidak ada item yang diisi, simpan satu baris data kosong (hanya berisi header rekap)
-      rowsToSave.push({
-        type: 'rekap',
-        tempId: idLeads,
-        data: {
-          'Sumber Leads': '-',
-          'Jenis Pesan': '-',
-          'Block Lose': '-',
-          'MQL': '-',
-          'Qty': 1
-        }
-      });
+      showToast('Harap isi minimal 1 baris item Leads, Chat Terhenti, atau Chat Lama!', 'warning');
+      return;
     }
 
     // Jika hanya ada 1 item dari seluruh kategori, pertahankan base ID asli
@@ -575,21 +616,28 @@ async function handleLeadSubmit(event) {
     let mql = '-';
     let qty = 1;
 
+    const rekapSection = document.getElementById('leads-items-container')?.parentElement;
+    const terhentiSection = document.getElementById('terhenti-items-container')?.parentElement;
+    const lamaSection = document.getElementById('lama-items-container')?.parentElement;
+
     const rekapRow = document.querySelector('.lead-item-row');
     const terhentiRow = document.querySelector('.terhenti-item-row');
     const lamaRow = document.querySelector('.lama-item-row');
 
-    if (rekapRow && rekapRow.style.display !== 'none') {
-      source = rekapRow.querySelector('.lead-item-source').value || '-';
-      message = rekapRow.querySelector('.lead-item-message').value || '-';
-      qty = parseInt(rekapRow.querySelector('.lead-item-qty').value, 10) || 1;
-    } else if (terhentiRow && terhentiRow.style.display !== 'none') {
-      block = terhentiRow.querySelector('.terhenti-item-block').value || '-';
-      qty = parseInt(terhentiRow.querySelector('.terhenti-item-qty').value, 10) || 1;
-    } else if (lamaRow && lamaRow.style.display !== 'none') {
-      mql = lamaRow.querySelector('.lama-item-mql').value || '-';
-      qty = parseInt(lamaRow.querySelector('.lama-item-qty').value, 10) || 1;
+    if (rekapSection && rekapSection.style.display !== 'none' && rekapRow) {
+      source = rekapRow.querySelector('.lead-item-source')?.value || '-';
+      message = rekapRow.querySelector('.lead-item-message')?.value || '-';
+      qty = parseInt(rekapRow.querySelector('.lead-item-qty')?.value, 10) || 1;
+    } else if (terhentiSection && terhentiSection.style.display !== 'none' && terhentiRow) {
+      block = terhentiRow.querySelector('.terhenti-item-block')?.value || '-';
+      qty = parseInt(terhentiRow.querySelector('.terhenti-item-qty')?.value, 10) || 1;
+    } else if (lamaSection && lamaSection.style.display !== 'none' && lamaRow) {
+      mql = lamaRow.querySelector('.lama-item-mql')?.value || '-';
+      qty = parseInt(lamaRow.querySelector('.lama-item-qty')?.value, 10) || 1;
     }
+
+    const existingLead = currentLeads.find(l => l['ID Leads'] === idLeads);
+    const originalCreated = (existingLead && existingLead['Timestamp Created']) ? existingLead['Timestamp Created'] : new Date().toISOString();
 
     const leadData = {
       'ID Leads': idLeads,
@@ -601,7 +649,7 @@ async function handleLeadSubmit(event) {
       'Block Lose': block,
       'MQL': mql,
       'Qty': qty,
-      'Timestamp Created': '', // Biarkan server tetap mempertahankan waktu pembuatan asli
+      'Timestamp Created': originalCreated,
       'Timestamp Updated': new Date().toISOString(),
       'Status': 'Active'
     };
@@ -641,10 +689,11 @@ async function editLead(leadId) {
   document.getElementById('lead-id').value = lead['ID Leads'];
   
   // Convert format tanggal dari 'YYYY-MM-DD HH:mm:ss' ke 'YYYY-MM-DDTHH:mm' untuk input datetime-local
-  const cleanDate = lead['Tanggal Leads'].replace(' ', 'T').substring(0, 16);
+  const rawDate = lead['Tanggal Leads'] || '';
+  const cleanDate = rawDate.replace(' ', 'T').substring(0, 16);
   document.getElementById('lead-date').value = cleanDate;
   
-  document.getElementById('lead-sales').value = lead['Nama Sales'];
+  document.getElementById('lead-sales').value = lead['Nama Sales'] || '';
   document.getElementById('lead-channel').value = lead['Sumber Channel'] || '';
 
   // Dapatkan element section dan container
@@ -687,8 +736,11 @@ async function editLead(leadId) {
   document.getElementById('btn-add-lama-row').style.display = 'none';
 
   // Ganti Tulisan Tombol
-  document.getElementById('btn-submit-lead').innerText = 'Perbarui Rekap';
-  document.getElementById('btn-submit-lead').classList.add('editing');
+  const submitBtn = document.getElementById('btn-submit-lead');
+  if (submitBtn) {
+    submitBtn.innerText = 'Perbarui Rekap';
+    submitBtn.classList.add('editing');
+  }
   
   showToast(`Mengedit lead ${leadId}`, 'info');
 }
@@ -762,7 +814,7 @@ function resetLeadForm() {
  */
 async function renderHistoryTable() {
   const tbody = document.getElementById('history-table-body');
-  tbody.innerHTML = '';
+  if (!tbody) return;
 
   if (historyFilteredLeads.length === 0) {
     tbody.innerHTML = `<tr><td colspan="11" class="no-data-msg">Tidak ada data rekapitulasi leads ditemukan.</td></tr>`;
@@ -779,8 +831,11 @@ async function renderHistoryTable() {
   const queue = await window.soviaDb.getQueue();
   const pendingIds = new Set(queue.filter(q => q.action !== 'update_options').map(q => q.id));
 
+  const rowsHtml = [];
+
   displayLeads.forEach(lead => {
     const isPending = pendingIds.has(lead['ID Leads']);
+    const safeLeadId = encodeURIComponent(lead['ID Leads'] || '');
     
     // Badge status sync
     const badgeHtml = isPending 
@@ -793,33 +848,34 @@ async function renderHistoryTable() {
           Synced
          </span>`;
 
-    // Render baris
-    tbody.innerHTML += `
+    // Render baris secara batch dengan HTML escaping
+    rowsHtml.push(`
       <tr>
-        <td><strong>${lead['ID Leads']}</strong></td>
-        <td>${lead['Tanggal Leads']}</td>
-        <td>${lead['Nama Sales']}</td>
-        <td>${lead['Sumber Channel'] || '-'}</td>
-        <td>${lead['Sumber Leads'] || '-'}</td>
-        <td>${lead['Jenis Pesan'] || '-'}</td>
-        <td>${lead['Block Lose'] || '-'}</td>
-        <td>${lead['MQL'] || '-'}</td>
-        <td>${lead['Qty']}</td>
+        <td><strong>${escapeHtml(lead['ID Leads'])}</strong></td>
+        <td>${escapeHtml(lead['Tanggal Leads'])}</td>
+        <td>${escapeHtml(lead['Nama Sales'])}</td>
+        <td>${escapeHtml(lead['Sumber Channel'] || '-')}</td>
+        <td>${escapeHtml(lead['Sumber Leads'] || '-')}</td>
+        <td>${escapeHtml(lead['Jenis Pesan'] || '-')}</td>
+        <td>${escapeHtml(lead['Block Lose'] || '-')}</td>
+        <td>${escapeHtml(lead['MQL'] || '-')}</td>
+        <td>${escapeHtml(lead['Qty'])}</td>
         <td>${badgeHtml}</td>
         <td style="text-align: center;">
           <div class="btn-action-group">
-            <button class="btn-action edit" onclick="editLead('${lead['ID Leads']}')" title="Edit Data">
+            <button class="btn-action edit" onclick="editLead(decodeURIComponent('${safeLeadId}'))" title="Edit Data">
               <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
             </button>
-            <button class="btn-action delete" onclick="deleteLead('${lead['ID Leads']}')" title="Hapus Data">
+            <button class="btn-action delete" onclick="deleteLead(decodeURIComponent('${safeLeadId}'))" title="Hapus Data">
               <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
             </button>
           </div>
         </td>
       </tr>
-    `;
+    `);
   });
 
+  tbody.innerHTML = rowsHtml.join('');
   updatePaginationUI();
 }
 
@@ -880,19 +936,19 @@ function resetHistoryDateFilter(triggerRender = true) {
  * Melakukan filter pencarian (teks & tanggal) pada tabel riwayat
  */
 function filterHistoryTable() {
-  const query = document.getElementById('search-history').value.toLowerCase().trim();
-  const startDateStr = document.getElementById('history-filter-start')?.value; // format: YYYY-MM-DD
-  const endDateStr = document.getElementById('history-filter-end')?.value; // format: YYYY-MM-DD
+  const query = document.getElementById('search-history')?.value.toLowerCase().trim() || '';
+  const startDateStr = document.getElementById('history-filter-start')?.value || ''; // format: YYYY-MM-DD
+  const endDateStr = document.getElementById('history-filter-end')?.value || ''; // format: YYYY-MM-DD
   
   historyFilteredLeads = currentLeads.filter(lead => {
-    // Filter by date range (compare YYYY-MM-DD)
+    // Filter by date range (compare YYYY-MM-DD secara konsisten)
     let matchDate = true;
-    const leadDateStr = (lead['Tanggal Leads'] || '').split(' ')[0]; // Extract YYYY-MM-DD part
+    const leadDateStr = getLeadDateOnly(lead['Tanggal Leads']);
     
-    if (startDateStr && leadDateStr < startDateStr) {
+    if (startDateStr && leadDateStr && leadDateStr < startDateStr) {
       matchDate = false;
     }
-    if (endDateStr && leadDateStr > endDateStr) {
+    if (endDateStr && leadDateStr && leadDateStr > endDateStr) {
       matchDate = false;
     }
     
@@ -900,8 +956,8 @@ function filterHistoryTable() {
     let matchText = true;
     if (query) {
       matchText = (
-        lead['ID Leads'].toLowerCase().includes(query) ||
-        lead['Nama Sales'].toLowerCase().includes(query) ||
+        (lead['ID Leads'] || '').toLowerCase().includes(query) ||
+        (lead['Nama Sales'] || '').toLowerCase().includes(query) ||
         (lead['Sumber Channel'] || '').toLowerCase().includes(query) ||
         (lead['Sumber Leads'] || '').toLowerCase().includes(query) ||
         (lead['Jenis Pesan'] || '').toLowerCase().includes(query) ||
@@ -939,6 +995,7 @@ function renderValidationLists() {
  */
 function renderOptionList(type, list) {
   const container = document.getElementById(`list-${type}`);
+  if (!container) return;
   container.innerHTML = '';
 
   if (!list || list.length === 0) {
@@ -947,14 +1004,21 @@ function renderOptionList(type, list) {
   }
 
   list.forEach(val => {
-    container.innerHTML += `
-      <div class="option-item">
-        <span>${val}</span>
-        <button class="btn-delete-option" onclick="deleteOption('${type}', '${val}')" title="Hapus">
-          <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
-        </button>
-      </div>
-    `;
+    const itemEl = document.createElement('div');
+    itemEl.className = 'option-item';
+
+    const spanEl = document.createElement('span');
+    spanEl.textContent = val;
+    itemEl.appendChild(spanEl);
+
+    const btnEl = document.createElement('button');
+    btnEl.className = 'btn-delete-option';
+    btnEl.title = 'Hapus';
+    btnEl.innerHTML = `<svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>`;
+    btnEl.onclick = () => deleteOption(type, val);
+    itemEl.appendChild(btnEl);
+
+    container.appendChild(itemEl);
   });
 }
 
@@ -963,15 +1027,18 @@ function renderOptionList(type, list) {
  */
 async function addOption(type) {
   const inputEl = document.getElementById(`input-${type}`);
+  if (!inputEl) return;
   const newVal = inputEl.value.trim();
   
   if (!newVal) return;
 
   const dbType = getDbType(type);
+  if (!dbType) return;
   let currentList = getOptionArray(type);
 
-  // Validasi duplikat
-  if (currentList.some(item => item.toLowerCase() === newVal.toLowerCase())) {
+  // Validasi duplikat secara case-insensitive & aman
+  const lowerNewVal = newVal.toLowerCase();
+  if (currentList.some(item => String(item).toLowerCase() === lowerNewVal)) {
     showToast('Opsi sudah ada di daftar!', 'warning');
     return;
   }
@@ -1080,25 +1147,12 @@ function resetDashboardFilters() {
 }
 
 /**
- * Mengkalkulasi metrik & merender dashboard secara realtime
- */
-/**
  * Mengubah sales terpilih di dashboard dan merender ulang
  */
 function selectSalesDashboard(salesName) {
   selectedSalesDashboard = salesName;
   renderDashboard();
   showToast(`Menampilkan detail analitik untuk ${salesName}`, 'info');
-}
-
-/**
- * Memilih tanggal harian dari tabel summary untuk memfilter dashboard
- */
-function selectDashboardDate(day) {
-  document.getElementById('filter-start-date').value = day;
-  document.getElementById('filter-end-date').value = day;
-  renderDashboard();
-  showToast(`Menampilkan data untuk tanggal ${day}`, 'info');
 }
 
 /**
@@ -1168,12 +1222,12 @@ function renderChannelDetailRows(channelLeads) {
   rows.forEach((row, rIdx) => {
     html += '<tr>';
     if (salesSpan[rIdx] > 0) {
-      html += `<td rowspan="${salesSpan[rIdx]}" style="vertical-align: top; border-right: 1px solid var(--border-color);"><strong>${row.sales}</strong></td>`;
+      html += `<td rowspan="${salesSpan[rIdx]}" style="vertical-align: top; border-right: 1px solid var(--border-color);"><strong>${escapeHtml(row.sales)}</strong></td>`;
     }
     if (sourceSpan[rIdx] > 0) {
-      html += `<td rowspan="${sourceSpan[rIdx]}" style="vertical-align: top; border-right: 1px solid var(--border-color);">${row.source}</td>`;
+      html += `<td rowspan="${sourceSpan[rIdx]}" style="vertical-align: top; border-right: 1px solid var(--border-color);">${escapeHtml(row.source)}</td>`;
     }
-    html += `<td style="border-right: 1px solid var(--border-color);">${row.msg}</td>`;
+    html += `<td style="border-right: 1px solid var(--border-color);">${escapeHtml(row.msg)}</td>`;
     html += `<td><span style="color: var(--gold-primary); font-weight: 600;">${row.qty} Leads</span></td>`;
     html += '</tr>';
   });
@@ -1185,24 +1239,19 @@ function renderChannelDetailRows(channelLeads) {
  * Mengkalkulasi metrik & merender dashboard secara realtime dengan drilldown kartu per sales
  */
 function renderDashboard() {
-  const startDateStr = document.getElementById('filter-start-date').value;
-  const endDateStr = document.getElementById('filter-end-date').value;
+  const startDateStr = document.getElementById('filter-start-date')?.value || '';
+  const endDateStr = document.getElementById('filter-end-date')?.value || '';
 
   if (!startDateStr || !endDateStr) return;
 
-  // Ubah filter ke objek Date (Start = 00:00:00, End = 23:59:59)
-  const filterStart = new Date(startDateStr + 'T00:00:00');
-  const filterEnd = new Date(endDateStr + 'T23:59:59');
-
-  // Filter leads yang berada di dalam range tanggal terpilih
+  // Filter leads yang berada di dalam range tanggal terpilih secara aman dan konsisten
   const filteredLeads = currentLeads.filter(lead => {
-    // Tanggal Leads tersimpan dalam format 'YYYY-MM-DD HH:mm:ss'
-    const leadDate = new Date(lead['Tanggal Leads'].replace(' ', 'T'));
-    return leadDate >= filterStart && leadDate <= filterEnd;
+    const leadDateStr = getLeadDateOnly(lead['Tanggal Leads']);
+    if (!leadDateStr) return false;
+    return leadDateStr >= startDateStr && leadDateStr <= endDateStr;
   });
 
   // 1. Hitung total transaksi dan qty keseluruhan (hanya leads sales / rekap, tanpa Block Lose & MQL)
-  // Filter hanya leads yang termasuk rekap leads sales (memiliki Sumber Leads & Jenis Pesan)
   const rekapOnlyLeads = filteredLeads.filter(l =>
     l['Sumber Leads'] && l['Sumber Leads'] !== '-' &&
     l['Jenis Pesan'] && l['Jenis Pesan'] !== '-'
@@ -1218,7 +1267,7 @@ function renderDashboard() {
     const qty = parseInt(lead['Qty'], 10) || 0;
     totalQty += qty;
 
-    const sales = lead['Nama Sales'] || 'Unknown';
+    const sales = (lead['Nama Sales'] || 'Unknown').trim();
     if (!salesMap[sales]) {
       salesMap[sales] = { count: 0, qty: 0 };
     }
@@ -1228,151 +1277,169 @@ function renderDashboard() {
 
   // 2. Render Kartu Per Sales
   const cardsContainer = document.getElementById('sales-cards-container');
-  cardsContainer.innerHTML = '';
+  if (cardsContainer) {
+    cardsContainer.innerHTML = '';
 
-  // Buat set nama sales unik dari data dan validation dropdown
-  const allSalesNames = new Set(validationOptions.sales);
-  filteredLeads.forEach(lead => {
-    if (lead['Nama Sales']) allSalesNames.add(lead['Nama Sales']);
-  });
+    // Buat set nama sales unik dari data dan validation dropdown
+    const allSalesNames = new Set((validationOptions.sales || []).map(s => String(s).trim()).filter(Boolean));
+    filteredLeads.forEach(lead => {
+      if (lead['Nama Sales'] && lead['Nama Sales'].trim()) {
+        allSalesNames.add(lead['Nama Sales'].trim());
+      }
+    });
 
-  // Urutkan nama sales secara alfabetis
-  const sortedSalesNames = Array.from(allSalesNames).sort();
+    // Urutkan nama sales secara alfabetis
+    const sortedSalesNames = Array.from(allSalesNames).sort();
 
-  // Kartu pertama: "Semua Sales" (Total)
-  const isSemuaActive = selectedSalesDashboard === 'Semua Sales';
-  cardsContainer.innerHTML += `
-    <div class="card ${isSemuaActive ? 'active' : ''}" onclick="selectSalesDashboard('Semua Sales')">
-      <span class="card-title">Semua Sales (Total)</span>
-      <span class="card-value" style="font-size: 1.85rem;">${totalQty} Leads</span>
-      <span style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">${totalLeadsCount} Recap</span>
-    </div>
-  `;
-
-  // Kartu untuk masing-masing sales
-  sortedSalesNames.forEach(salesName => {
-    const stats = salesMap[salesName] || { count: 0, qty: 0 };
-    const isActive = selectedSalesDashboard === salesName;
+    // Kartu pertama: "Semua Sales" (Total)
+    const isSemuaActive = selectedSalesDashboard === 'Semua Sales';
     cardsContainer.innerHTML += `
-      <div class="card ${isActive ? 'active' : ''}" onclick="selectSalesDashboard('${salesName}')">
-        <span class="card-title">Sales: ${salesName}</span>
-        <span class="card-value" style="font-size: 1.85rem;">${stats.qty} Leads</span>
-        <span style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">${stats.count} Recap</span>
+      <div class="card ${isSemuaActive ? 'active' : ''}" onclick="selectSalesDashboard('Semua Sales')">
+        <span class="card-title">Semua Sales (Total)</span>
+        <span class="card-value" style="font-size: 1.85rem;">${totalQty} Leads</span>
+        <span style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">${totalLeadsCount} Recap</span>
       </div>
     `;
-  });
 
-  // 3. Render Analitik Per Sumber Channel (Channel -> Sales -> Sumber Leads -> Jenis Pesan -> Total Leads)
-  // Hanya menghitung leads sales (rekap), tanpa Block Lose & MQL
-  // Hormati filter sales terpilih: jika sales tertentu dipilih, hanya tampilkan leads sales tersebut
-  const channelContainer = document.getElementById('channel-analytics-container');
-  channelContainer.innerHTML = '';
-
-  const channelSourceLeads = selectedSalesDashboard === 'Semua Sales'
-    ? rekapOnlyLeads
-    : rekapOnlyLeads.filter(l => l['Nama Sales'] === selectedSalesDashboard);
-
-  // Group data rekap leads per Channel
-  const channelGroups = {};
-  channelSourceLeads.forEach(lead => {
-    const channel = lead['Sumber Channel'] || 'Tidak Diketahui';
-    if (!channelGroups[channel]) channelGroups[channel] = [];
-    channelGroups[channel].push(lead);
-  });
-
-  const channelSortedKeys = Object.keys(channelGroups).sort();
-  const channelTotalQty = channelSourceLeads.reduce((acc, curr) => acc + (parseInt(curr['Qty'], 10) || 0), 0);
-  document.getElementById('channel-analytics-qty').innerText = `Total: ${channelTotalQty} Leads (${channelSourceLeads.length} Recap)`;
-
-  if (channelSortedKeys.length === 0) {
-    channelContainer.innerHTML = `<p class="no-data-msg" style="padding: 1rem 0;">Tidak ada data leads sales untuk range ini.</p>`;
-  } else {
-    channelSortedKeys.forEach(channel => {
-      const channelLeads = channelGroups[channel];
-      const channelQty = channelLeads.reduce((acc, curr) => acc + (parseInt(curr['Qty'], 10) || 0), 0);
-      const channelCount = channelLeads.length;
-
-      // Hitung unique sales pada channel ini
-      const salesOnChannel = new Set(channelLeads.map(l => l['Nama Sales'] || 'Tidak Diketahui'));
-
-      const cardHtml = `
-        <div class="channel-analytics-card" style="background-color: var(--bg-card); border: 1px solid var(--border-color); border-radius: 10px; padding: 1.25rem; margin-bottom: 1rem;">
-          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border-color);">
-            <div>
-              <span style="font-family: var(--font-title); font-size: 1.05rem; font-weight: 600; color: var(--gold-primary);">${channel}</span>
-              <span style="font-size: 0.8rem; color: var(--text-muted); margin-left: 0.5rem;">${salesOnChannel.size} Sales &middot; ${channelCount} Recap</span>
-            </div>
-            <span class="badge synced" style="font-size: 0.85rem; font-family: var(--font-body); padding: 0.35rem 0.75rem;">${channelQty} Leads</span>
-          </div>
-          <div style="overflow-x: auto;">
-            <table class="history-table" style="font-size: 0.85rem;">
-              <thead>
-                <tr>
-                  <th>Nama Sales</th>
-                  <th>Sumber Leads</th>
-                  <th>Jenis Pesan</th>
-                  <th>Total Leads</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${renderChannelDetailRows(channelLeads)}
-              </tbody>
-            </table>
-          </div>
+    // Kartu untuk masing-masing sales
+    sortedSalesNames.forEach(salesName => {
+      const stats = salesMap[salesName] || { count: 0, qty: 0 };
+      const isActive = selectedSalesDashboard === salesName;
+      const safeSales = encodeURIComponent(salesName);
+      cardsContainer.innerHTML += `
+        <div class="card ${isActive ? 'active' : ''}" onclick="selectSalesDashboard(decodeURIComponent('${safeSales}'))">
+          <span class="card-title">Sales: ${escapeHtml(salesName)}</span>
+          <span class="card-value" style="font-size: 1.85rem;">${stats.qty} Leads</span>
+          <span style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">${stats.count} Recap</span>
         </div>
       `;
-      channelContainer.insertAdjacentHTML('beforeend', cardHtml);
     });
+  }
+
+  // 3. Render Analitik Per Sumber Channel (Channel -> Sales -> Sumber Leads -> Jenis Pesan -> Total Leads)
+  const channelContainer = document.getElementById('channel-analytics-container');
+  if (channelContainer) {
+    channelContainer.innerHTML = '';
+
+    const channelSourceLeads = selectedSalesDashboard === 'Semua Sales'
+      ? rekapOnlyLeads
+      : rekapOnlyLeads.filter(l => (l['Nama Sales'] || '').trim() === selectedSalesDashboard);
+
+    // Group data rekap leads per Channel
+    const channelGroups = {};
+    channelSourceLeads.forEach(lead => {
+      const channel = lead['Sumber Channel'] || 'Tidak Diketahui';
+      if (!channelGroups[channel]) channelGroups[channel] = [];
+      channelGroups[channel].push(lead);
+    });
+
+    const channelSortedKeys = Object.keys(channelGroups).sort();
+    const channelTotalQty = channelSourceLeads.reduce((acc, curr) => acc + (parseInt(curr['Qty'], 10) || 0), 0);
+    const channelQtyEl = document.getElementById('channel-analytics-qty');
+    if (channelQtyEl) {
+      channelQtyEl.innerText = `Total: ${channelTotalQty} Leads (${channelSourceLeads.length} Recap)`;
+    }
+
+    if (channelSortedKeys.length === 0) {
+      channelContainer.innerHTML = `<p class="no-data-msg" style="padding: 1rem 0;">Tidak ada data leads sales untuk range ini.</p>`;
+    } else {
+      channelSortedKeys.forEach(channel => {
+        const channelLeads = channelGroups[channel];
+        const channelQty = channelLeads.reduce((acc, curr) => acc + (parseInt(curr['Qty'], 10) || 0), 0);
+        const channelCount = channelLeads.length;
+
+        // Hitung unique sales pada channel ini
+        const salesOnChannel = new Set(channelLeads.map(l => l['Nama Sales'] || 'Tidak Diketahui'));
+
+        const cardHtml = `
+          <div class="channel-analytics-card">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border-color);">
+              <div>
+                <span style="font-family: var(--font-title); font-size: 1.05rem; font-weight: 600; color: var(--gold-primary);">${escapeHtml(channel)}</span>
+                <span style="font-size: 0.8rem; color: var(--text-muted); margin-left: 0.5rem;">${salesOnChannel.size} Sales &middot; ${channelCount} Recap</span>
+              </div>
+              <span class="badge synced" style="font-size: 0.85rem; font-family: var(--font-body); padding: 0.35rem 0.75rem;">${channelQty} Leads</span>
+            </div>
+            <div style="overflow-x: auto;">
+              <table class="history-table" style="font-size: 0.85rem;">
+                <thead>
+                  <tr>
+                    <th>Nama Sales</th>
+                    <th>Sumber Leads</th>
+                    <th>Jenis Pesan</th>
+                    <th>Total Leads</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${renderChannelDetailRows(channelLeads)}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        `;
+        channelContainer.insertAdjacentHTML('beforeend', cardHtml);
+      });
+    }
   }
 
   // 3a. Render Analitik Per Sumber Leads Global
   const sourceContainer = document.getElementById('source-analytics-container');
-  sourceContainer.innerHTML = '';
+  if (sourceContainer) {
+    sourceContainer.innerHTML = '';
 
-  const sourceGroups = {};
-  channelSourceLeads.forEach(lead => {
-    const source = lead['Sumber Leads'] || 'Tidak Diketahui';
-    if (!sourceGroups[source]) sourceGroups[source] = [];
-    sourceGroups[source].push(lead);
-  });
+    const channelSourceLeads = selectedSalesDashboard === 'Semua Sales'
+      ? rekapOnlyLeads
+      : rekapOnlyLeads.filter(l => (l['Nama Sales'] || '').trim() === selectedSalesDashboard);
 
-  const sourceSortedKeys = Object.keys(sourceGroups).sort();
-  document.getElementById('source-analytics-qty').innerText = `Total: ${channelTotalQty} Leads (${channelSourceLeads.length} Recap)`;
-
-  if (sourceSortedKeys.length === 0) {
-    sourceContainer.innerHTML = `<p class="no-data-msg" style="padding: 1rem 0;">Tidak ada data sumber leads untuk range ini.</p>`;
-  } else {
-    sourceSortedKeys.forEach(source => {
-      const sourceLeads = sourceGroups[source];
-      const sourceQty = sourceLeads.reduce((acc, curr) => acc + (parseInt(curr['Qty'], 10) || 0), 0);
-      const sourceCount = sourceLeads.length;
-
-      const msgGroups = {};
-      sourceLeads.forEach(lead => {
-        const msg = lead['Jenis Pesan'] || 'Tidak Diketahui';
-        const qty = parseInt(lead['Qty'], 10) || 0;
-        msgGroups[msg] = (msgGroups[msg] || 0) + qty;
-      });
-
-      let msgHtml = '';
-      if (Object.keys(msgGroups).length > 0) {
-        msgHtml = `<hr style="margin: 0.75rem 0 0.5rem 0; border: 0; border-top: 1px dashed var(--border-color);"><div style="font-size: 0.75rem; color: var(--text-muted); display: flex; flex-direction: column; gap: 0.2rem;">`;
-        Object.keys(msgGroups).sort().forEach(msg => {
-          msgHtml += `<span>${msg}: <strong style="color: var(--gold-primary);">${msgGroups[msg]} Leads</strong></span>`;
-        });
-        msgHtml += `</div>`;
-      }
-
-      const cardHtml = `
-        <div class="card">
-          <span class="card-title">${source}</span>
-          <span class="card-value" style="font-size: 1.85rem;">${sourceQty} Leads</span>
-          <span style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">${sourceCount} Recap</span>
-          ${msgHtml}
-        </div>
-      `;
-      sourceContainer.insertAdjacentHTML('beforeend', cardHtml);
+    const sourceGroups = {};
+    channelSourceLeads.forEach(lead => {
+      const source = lead['Sumber Leads'] || 'Tidak Diketahui';
+      if (!sourceGroups[source]) sourceGroups[source] = [];
+      sourceGroups[source].push(lead);
     });
+
+    const sourceSortedKeys = Object.keys(sourceGroups).sort();
+    const sourceTotalQty = channelSourceLeads.reduce((acc, curr) => acc + (parseInt(curr['Qty'], 10) || 0), 0);
+    const sourceQtyEl = document.getElementById('source-analytics-qty');
+    if (sourceQtyEl) {
+      sourceQtyEl.innerText = `Total: ${sourceTotalQty} Leads (${channelSourceLeads.length} Recap)`;
+    }
+
+    if (sourceSortedKeys.length === 0) {
+      sourceContainer.innerHTML = `<p class="no-data-msg" style="padding: 1rem 0;">Tidak ada data sumber leads untuk range ini.</p>`;
+    } else {
+      sourceSortedKeys.forEach(source => {
+        const sourceLeads = sourceGroups[source];
+        const sourceQty = sourceLeads.reduce((acc, curr) => acc + (parseInt(curr['Qty'], 10) || 0), 0);
+        const sourceCount = sourceLeads.length;
+
+        const msgGroups = {};
+        sourceLeads.forEach(lead => {
+          const msg = lead['Jenis Pesan'] || 'Tidak Diketahui';
+          const qty = parseInt(lead['Qty'], 10) || 0;
+          msgGroups[msg] = (msgGroups[msg] || 0) + qty;
+        });
+
+        let msgHtml = '';
+        if (Object.keys(msgGroups).length > 0) {
+          msgHtml = `<hr style="margin: 0.75rem 0 0.5rem 0; border: 0; border-top: 1px dashed var(--border-color);"><div style="font-size: 0.75rem; color: var(--text-muted); display: flex; flex-direction: column; gap: 0.2rem;">`;
+          Object.keys(msgGroups).sort().forEach(msg => {
+            msgHtml += `<span>${escapeHtml(msg)}: <strong style="color: var(--gold-primary);">${msgGroups[msg]} Leads</strong></span>`;
+          });
+          msgHtml += `</div>`;
+        }
+
+        const cardHtml = `
+          <div class="card">
+            <span class="card-title">${escapeHtml(source)}</span>
+            <span class="card-value" style="font-size: 1.85rem;">${sourceQty} Leads</span>
+            <span style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">${sourceCount} Recap</span>
+            ${msgHtml}
+          </div>
+        `;
+        sourceContainer.insertAdjacentHTML('beforeend', cardHtml);
+      });
+    }
   }
 
   // Calculate terhentiLeads and lamaLeads earlier if needed, or just do it here
@@ -1545,27 +1612,27 @@ function renderDashboard() {
 
   // Render the unified table rekap
   const unifiedTbody = document.getElementById('drilldown-unified-tbody');
-  unifiedTbody.innerHTML = '';
 
   if (rows.length === 0) {
     unifiedTbody.innerHTML = `<tr><td colspan="5" class="no-data-msg">Tidak ada data rekapitulasi leads untuk range ini.</td></tr>`;
   } else {
-    rows.forEach((row, rIdx) => {
+    const rowsHtml = rows.map((row, rIdx) => {
       let rowHtml = '<tr>';
       if (salesSpan[rIdx] > 0) {
-        rowHtml += `<td rowspan="${salesSpan[rIdx]}" style="vertical-align: top; border-right: 1px solid var(--border-color);"><strong>${row.sales}</strong></td>`;
+        rowHtml += `<td rowspan="${salesSpan[rIdx]}" style="vertical-align: top; border-right: 1px solid var(--border-color);"><strong>${escapeHtml(row.sales)}</strong></td>`;
       }
       if (channelSpan[rIdx] > 0) {
-        rowHtml += `<td rowspan="${channelSpan[rIdx]}" style="vertical-align: top; border-right: 1px solid var(--border-color);">${row.channel}</td>`;
+        rowHtml += `<td rowspan="${channelSpan[rIdx]}" style="vertical-align: top; border-right: 1px solid var(--border-color);">${escapeHtml(row.channel)}</td>`;
       }
       if (sourceSpan[rIdx] > 0) {
-        rowHtml += `<td rowspan="${sourceSpan[rIdx]}" style="vertical-align: top; border-right: 1px solid var(--border-color);">${row.source}</td>`;
+        rowHtml += `<td rowspan="${sourceSpan[rIdx]}" style="vertical-align: top; border-right: 1px solid var(--border-color);">${escapeHtml(row.source)}</td>`;
       }
-      rowHtml += `<td style="border-right: 1px solid var(--border-color);">${row.msg}</td>`;
+      rowHtml += `<td style="border-right: 1px solid var(--border-color);">${escapeHtml(row.msg)}</td>`;
       rowHtml += `<td><span style="color: var(--gold-primary); font-weight: 600;">${row.qty} Leads</span></td>`;
       rowHtml += '</tr>';
-      unifiedTbody.innerHTML += rowHtml;
+      return rowHtml;
     });
+    unifiedTbody.innerHTML = rowsHtml.join('');
   }
 
   // 5. Render Filter Bertingkat Chat Terhenti (Nama Sales -> Sumber Channel -> Block Lose -> Total Leads)
@@ -1638,24 +1705,24 @@ function renderDashboard() {
   }
 
   const terhentiTbody = document.getElementById('drilldown-terhenti-tbody');
-  terhentiTbody.innerHTML = '';
 
   if (rowsTerhenti.length === 0) {
     terhentiTbody.innerHTML = `<tr><td colspan="4" class="no-data-msg">Tidak ada data chat terhenti untuk range ini.</td></tr>`;
   } else {
-    rowsTerhenti.forEach((row, rIdx) => {
+    const rowsTerhentiHtml = rowsTerhenti.map((row, rIdx) => {
       let rowHtml = '<tr>';
       if (salesSpanTerhenti[rIdx] > 0) {
-        rowHtml += `<td rowspan="${salesSpanTerhenti[rIdx]}" style="vertical-align: top; border-right: 1px solid var(--border-color);"><strong>${row.sales}</strong></td>`;
+        rowHtml += `<td rowspan="${salesSpanTerhenti[rIdx]}" style="vertical-align: top; border-right: 1px solid var(--border-color);"><strong>${escapeHtml(row.sales)}</strong></td>`;
       }
       if (channelSpanTerhenti[rIdx] > 0) {
-        rowHtml += `<td rowspan="${channelSpanTerhenti[rIdx]}" style="vertical-align: top; border-right: 1px solid var(--border-color);">${row.channel}</td>`;
+        rowHtml += `<td rowspan="${channelSpanTerhenti[rIdx]}" style="vertical-align: top; border-right: 1px solid var(--border-color);">${escapeHtml(row.channel)}</td>`;
       }
-      rowHtml += `<td style="border-right: 1px solid var(--border-color);">${row.block}</td>`;
+      rowHtml += `<td style="border-right: 1px solid var(--border-color);">${escapeHtml(row.block)}</td>`;
       rowHtml += `<td><span style="color: var(--gold-primary); font-weight: 600;">${row.qty} Leads</span></td>`;
       rowHtml += '</tr>';
-      terhentiTbody.innerHTML += rowHtml;
+      return rowHtml;
     });
+    terhentiTbody.innerHTML = rowsTerhentiHtml.join('');
   }
 
   // 6. Render Filter Bertingkat Chat Lama (Nama Sales -> Sumber Channel -> MQL -> Total Leads)
@@ -1728,24 +1795,24 @@ function renderDashboard() {
   }
 
   const lamaTbody = document.getElementById('drilldown-lama-tbody');
-  lamaTbody.innerHTML = '';
 
   if (rowsLama.length === 0) {
     lamaTbody.innerHTML = `<tr><td colspan="4" class="no-data-msg">Tidak ada data chat lama untuk range ini.</td></tr>`;
   } else {
-    rowsLama.forEach((row, rIdx) => {
+    const rowsLamaHtml = rowsLama.map((row, rIdx) => {
       let rowHtml = '<tr>';
       if (salesSpanLama[rIdx] > 0) {
-        rowHtml += `<td rowspan="${salesSpanLama[rIdx]}" style="vertical-align: top; border-right: 1px solid var(--border-color);"><strong>${row.sales}</strong></td>`;
+        rowHtml += `<td rowspan="${salesSpanLama[rIdx]}" style="vertical-align: top; border-right: 1px solid var(--border-color);"><strong>${escapeHtml(row.sales)}</strong></td>`;
       }
       if (channelSpanLama[rIdx] > 0) {
-        rowHtml += `<td rowspan="${channelSpanLama[rIdx]}" style="vertical-align: top; border-right: 1px solid var(--border-color);">${row.channel}</td>`;
+        rowHtml += `<td rowspan="${channelSpanLama[rIdx]}" style="vertical-align: top; border-right: 1px solid var(--border-color);">${escapeHtml(row.channel)}</td>`;
       }
-      rowHtml += `<td style="border-right: 1px solid var(--border-color);">${row.mql}</td>`;
+      rowHtml += `<td style="border-right: 1px solid var(--border-color);">${escapeHtml(row.mql)}</td>`;
       rowHtml += `<td><span style="color: var(--gold-primary); font-weight: 600;">${row.qty} Leads</span></td>`;
       rowHtml += '</tr>';
-      lamaTbody.innerHTML += rowHtml;
+      return rowHtml;
     });
+    lamaTbody.innerHTML = rowsLamaHtml.join('');
   }
 }
 

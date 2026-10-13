@@ -17,19 +17,19 @@
     
     <ul class="nav-links">
       <li>
-        <a id="nav-dashboard" class="nav-item active" onclick="switchPanel('dashboard')">
+        <a id="nav-dashboard" class="nav-item active" href="javascript:void(0)" onclick="switchPanel('dashboard')">
           <svg viewBox="0 0 24 24"><path d="M3 3h7v9H3zm11 0h7v5h-7zm0 9h7v9h-7zm-11 7h7v2H3z"/></svg>
           Dashboard
         </a>
       </li>
       <li>
-        <a id="nav-leads" class="nav-item" onclick="switchPanel('leads')">
+        <a id="nav-leads" class="nav-item" href="javascript:void(0)" onclick="switchPanel('leads')">
           <svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
           Form Leads
         </a>
       </li>
       <li>
-        <a id="nav-validation" class="nav-item" onclick="switchPanel('validation')">
+        <a id="nav-validation" class="nav-item" href="javascript:void(0)" onclick="switchPanel('validation')">
           <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
           Validation Panel
         </a>
@@ -353,7 +353,7 @@
         <div class="validation-card">
           <h2 class="section-title">Nama Sales</h2>
           <div class="option-input-group">
-            <input type="text" id="input-sales" class="form-control" placeholder="Nama sales baru...">
+            <input type="text" id="input-sales" class="form-control" placeholder="Nama sales baru..." onkeydown="if(event.key === 'Enter') addOption('sales')">
             <button class="btn-primary" style="padding: 0.6rem 1.25rem;" onclick="addOption('sales')">Tambah</button>
           </div>
           <div id="list-sales" class="option-list">
@@ -365,7 +365,7 @@
         <div class="validation-card">
           <h2 class="section-title">Sumber Channel</h2>
           <div class="option-input-group">
-            <input type="text" id="input-channels" class="form-control" placeholder="Sumber channel baru...">
+            <input type="text" id="input-channels" class="form-control" placeholder="Sumber channel baru..." onkeydown="if(event.key === 'Enter') addOption('channels')">
             <button class="btn-primary" style="padding: 0.6rem 1.25rem;" onclick="addOption('channels')">Tambah</button>
           </div>
           <div id="list-channels" class="option-list">
@@ -377,7 +377,7 @@
         <div class="validation-card">
           <h2 class="section-title">Sumber Leads</h2>
           <div class="option-input-group">
-            <input type="text" id="input-sources" class="form-control" placeholder="Sumber leads baru...">
+            <input type="text" id="input-sources" class="form-control" placeholder="Sumber leads baru..." onkeydown="if(event.key === 'Enter') addOption('sources')">
             <button class="btn-primary" style="padding: 0.6rem 1.25rem;" onclick="addOption('sources')">Tambah</button>
           </div>
           <div id="list-sources" class="option-list">
@@ -389,7 +389,7 @@
         <div class="validation-card">
           <h2 class="section-title">Jenis Pesan</h2>
           <div class="option-input-group">
-            <input type="text" id="input-messages" class="form-control" placeholder="Jenis pesan baru...">
+            <input type="text" id="input-messages" class="form-control" placeholder="Jenis pesan baru..." onkeydown="if(event.key === 'Enter') addOption('messages')">
             <button class="btn-primary" style="padding: 0.6rem 1.25rem;" onclick="addOption('messages')">Tambah</button>
           </div>
           <div id="list-messages" class="option-list">
@@ -401,7 +401,7 @@
         <div class="validation-card">
           <h2 class="section-title">Block Lose</h2>
           <div class="option-input-group">
-            <input type="text" id="input-blocks" class="form-control" placeholder="Pilihan block/lose baru...">
+            <input type="text" id="input-blocks" class="form-control" placeholder="Pilihan block/lose baru..." onkeydown="if(event.key === 'Enter') addOption('blocks')">
             <button class="btn-primary" style="padding: 0.6rem 1.25rem;" onclick="addOption('blocks')">Tambah</button>
           </div>
           <div id="list-blocks" class="option-list">
@@ -413,7 +413,7 @@
         <div class="validation-card">
           <h2 class="section-title">MQL</h2>
           <div class="option-input-group">
-            <input type="text" id="input-mql" class="form-control" placeholder="Pilihan MQL baru...">
+            <input type="text" id="input-mql" class="form-control" placeholder="Pilihan MQL baru..." onkeydown="if(event.key === 'Enter') addOption('mql')">
             <button class="btn-primary" style="padding: 0.6rem 1.25rem;" onclick="addOption('mql')">Tambah</button>
           </div>
           <div id="list-mql" class="option-list">
@@ -429,7 +429,7 @@
           Masukkan Web App URL yang Anda dapatkan setelah mendeploy script Google Apps Script backend.
         </p>
         <div class="settings-input-group">
-          <input type="url" id="gas-url-input" class="form-control" placeholder="https://script.google.com/macros/s/.../exec">
+          <input type="url" id="gas-url-input" class="form-control" placeholder="https://script.google.com/macros/s/.../exec" onkeydown="if(event.key === 'Enter') saveGasUrl()">
           <button class="btn-primary" onclick="saveGasUrl()">Simpan URL</button>
         </div>
       </div>

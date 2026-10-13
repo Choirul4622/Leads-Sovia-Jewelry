@@ -53,7 +53,13 @@ class SoviaSync {
         isSyncing: this.isSyncing,
         pendingCount: queue.length
       };
-      this.listeners.forEach(cb => cb(status));
+      this.listeners.forEach(cb => {
+        try {
+          cb(status);
+        } catch (listenerErr) {
+          console.error('Error pada listener status:', listenerErr);
+        }
+      });
     } catch (err) {
       console.error('Gagal memuat status antrean:', err);
     }
@@ -181,10 +187,14 @@ class SoviaSync {
         console.log(`Sync berhasil. Server memproses ${result.processedCount || 0} operasi.`);
         
         // Hapus item yang berhasil diproses dari antrean lokal
-        const processedCount = result.processedCount || 0;
-        if (processedCount > 0) {
-          const processedIds = queue.slice(0, processedCount).map(item => item.queueId);
-          await window.soviaDb.removeItemsFromQueue(processedIds);
+        if (result.processedQueueIds && Array.isArray(result.processedQueueIds) && result.processedQueueIds.length > 0) {
+          await window.soviaDb.removeItemsFromQueue(result.processedQueueIds);
+        } else {
+          const processedCount = result.processedCount || 0;
+          if (processedCount > 0) {
+            const processedIds = queue.slice(0, processedCount).map(item => item.queueId);
+            await window.soviaDb.removeItemsFromQueue(processedIds);
+          }
         }
         
         // Gabungkan data terbaru dari server ke database lokal

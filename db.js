@@ -4,7 +4,7 @@
  */
 
 const DB_NAME = 'sovia_leads_db';
-const DB_VERSION = 2; // v2: Added indexes
+const DB_VERSION = 3; // v3: Clean object stores without invalid keyPath indexes
 
 class SoviaDB {
   constructor() {
@@ -31,21 +31,9 @@ class SoviaDB {
       request.onupgradeneeded = (event) => {
         const db = event.target.result;
 
-        // Store untuk data Leads (Out-of-line Key)
+        // Store untuk data Leads (Out-of-line Key: ID Leads)
         if (!db.objectStoreNames.contains('leads')) {
           db.createObjectStore('leads');
-        } else {
-          // Migrasi v2: Tambah indexes jika belum ada
-          const leadsStore = event.target.transaction.objectStore('leads');
-          if (!leadsStore.indexNames.contains('idx_sales')) {
-            leadsStore.createIndex('idx_sales', 'Nama Sales', { unique: false });
-          }
-          if (!leadsStore.indexNames.contains('idx_channel')) {
-            leadsStore.createIndex('idx_channel', 'Sumber Channel', { unique: false });
-          }
-          if (!leadsStore.indexNames.contains('idx_date')) {
-            leadsStore.createIndex('idx_date', 'Tanggal Leads', { unique: false });
-          }
         }
 
         // Store untuk Opsi Validasi Dropdown (Key: type)
@@ -53,7 +41,7 @@ class SoviaDB {
           db.createObjectStore('validation', { keyPath: 'type' });
         }
 
-        // Store untuk Antrean Sinkronisasi (Auto-increment key)
+        // Store untuk Antrean Sinkronisasi (Auto-increment key: queueId)
         if (!db.objectStoreNames.contains('sync_queue')) {
           db.createObjectStore('sync_queue', { keyPath: 'queueId', autoIncrement: true });
         }
@@ -137,36 +125,20 @@ class SoviaDB {
         const transaction = this.db.transaction(['leads'], 'readwrite');
         const store = transaction.objectStore('leads');
         
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => reject(transaction.error || new Error('Transaction error'));
+        transaction.onabort = () => reject(new Error('Transaction aborted'));
+
         // Hapus data lama agar sinkron sempurna dengan server
-        const clearRequest = store.clear();
+        store.clear();
         
-        clearRequest.onsuccess = () => {
-          if (!leads || leads.length === 0) {
-            resolve();
-            return;
-          }
-          
-          let count = 0;
-          let hasError = false;
-          
+        if (Array.isArray(leads) && leads.length > 0) {
           leads.forEach(lead => {
-            const req = store.put(lead, lead['ID Leads']);
-            req.onsuccess = () => {
-              count++;
-              if (count === leads.length) {
-                resolve();
-              }
-            };
-            req.onerror = () => {
-              if (!hasError) {
-                hasError = true;
-                reject(req.error);
-              }
-            };
+            if (lead && lead['ID Leads']) {
+              store.put(lead, lead['ID Leads']);
+            }
           });
-        };
-        
-        clearRequest.onerror = () => reject(clearRequest.error);
+        }
       } catch (err) {
         reject(err);
       }
@@ -302,23 +274,12 @@ class SoviaDB {
         const transaction = this.db.transaction(['sync_queue'], 'readwrite');
         const store = transaction.objectStore('sync_queue');
         
-        let count = 0;
-        let hasError = false;
-        
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => reject(transaction.error || new Error('Transaction error'));
+        transaction.onabort = () => reject(new Error('Transaction aborted'));
+
         queueIds.forEach(id => {
-          const request = store.delete(id);
-          request.onsuccess = () => {
-            count++;
-            if (count === queueIds.length) {
-              resolve();
-            }
-          };
-          request.onerror = () => {
-            if (!hasError) {
-              hasError = true;
-              reject(request.error);
-            }
-          };
+          store.delete(id);
         });
       } catch (err) {
         reject(err);
