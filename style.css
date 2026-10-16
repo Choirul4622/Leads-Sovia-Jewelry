@@ -501,12 +501,177 @@ main {
 }
 
 .lead-item-row {
+  background-color: rgba(14, 19, 34, 0.45);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 1.25rem;
+  margin-bottom: 1.25rem;
+  animation: fadeIn 0.3s ease-out;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.lead-item-row:hover {
+  border-color: rgba(212, 175, 55, 0.35);
+}
+
+.lead-item-main-grid {
   display: grid;
-  grid-template-columns: 2fr 2fr 1.2fr 50px;
+  grid-template-columns: 2fr 2fr 1.6fr 1fr 42px;
   gap: 1rem;
   align-items: flex-end;
-  margin-bottom: 1rem;
-  animation: fadeIn 0.3s ease-out;
+}
+
+/* Toggle Checkbox Kontak / No HP */
+.contact-toggle-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  height: 100%;
+}
+
+.contact-toggle-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-family: var(--font-title);
+  color: var(--text-muted);
+  user-select: none;
+  background-color: var(--bg-main);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 0.72rem 0.85rem;
+  transition: all var(--transition-fast);
+}
+
+.contact-toggle-label:hover {
+  border-color: var(--gold-primary);
+  color: var(--text-main);
+}
+
+.contact-toggle-label input[type="checkbox"] {
+  accent-color: var(--gold-primary);
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.contact-toggle-label.active {
+  border-color: var(--gold-primary);
+  background-color: rgba(212, 175, 55, 0.08);
+  color: var(--gold-primary);
+  font-weight: 500;
+}
+
+/* Sub-container Multiple Baris Kontak */
+.lead-item-contacts-container {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px dashed var(--border-color);
+  background-color: rgba(11, 15, 25, 0.6);
+  border-radius: 6px;
+  padding: 1rem;
+  animation: fadeIn 0.25s ease-out;
+}
+
+.contacts-header-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.contacts-header-title {
+  font-size: 0.85rem;
+  font-family: var(--font-title);
+  font-weight: 600;
+  color: var(--gold-primary);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.contacts-list-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.contact-sub-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.contact-sub-row .contact-index {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  width: 24px;
+  text-align: right;
+  font-family: monospace;
+}
+
+.contact-sub-row .form-control {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.85rem;
+  font-family: monospace;
+}
+
+.btn-remove-contact-sub {
+  background: transparent;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: var(--danger);
+  border-radius: 4px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.btn-remove-contact-sub:hover {
+  background-color: rgba(239, 68, 68, 0.15);
+  border-color: var(--danger);
+  transform: scale(1.05);
+}
+
+.btn-add-contact-sub {
+  background: transparent;
+  border: 1px dashed var(--gold-primary);
+  color: var(--gold-primary);
+  padding: 0.4rem 0.85rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-family: var(--font-title);
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  transition: var(--transition-fast);
+}
+
+.btn-add-contact-sub:hover {
+  background-color: rgba(212, 175, 55, 0.12);
+  border-style: solid;
+}
+
+.form-control:disabled.qty-auto-disabled {
+  background-color: rgba(212, 175, 55, 0.08);
+  border-color: rgba(212, 175, 55, 0.35);
+  color: var(--gold-hover);
+  font-weight: 600;
+  cursor: not-allowed;
 }
 
 .terhenti-item-row, .lama-item-row {
@@ -518,14 +683,24 @@ main {
   animation: fadeIn 0.3s ease-out;
 }
 
-@media (max-width: 768px) {
-  .lead-item-row {
-    grid-template-columns: 1fr;
+@media (max-width: 900px) {
+  .lead-item-main-grid {
+    grid-template-columns: 1fr 1fr;
     gap: 1rem;
   }
-  .lead-item-row .btn-remove-item-row {
+  .lead-item-main-grid .btn-remove-item-row {
+    grid-column: span 2;
     width: 100% !important;
-    margin-top: 0.5rem;
+  }
+}
+
+@media (max-width: 600px) {
+  .lead-item-main-grid {
+    grid-template-columns: 1fr;
+  }
+  .lead-item-main-grid .btn-remove-item-row {
+    grid-column: span 1;
+    width: 100% !important;
   }
 }
 
@@ -561,6 +736,17 @@ main {
 .btn-primary:hover {
   filter: brightness(1.15);
   box-shadow: var(--gold-glow);
+}
+
+.btn-primary.editing {
+  background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+  color: #FFFFFF;
+  box-shadow: 0 0 15px rgba(245, 158, 11, 0.35);
+}
+
+.btn-primary.editing:hover {
+  filter: brightness(1.1);
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.5);
 }
 
 /* Validation Panel Editor Layout */

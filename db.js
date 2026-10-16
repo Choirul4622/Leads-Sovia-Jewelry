@@ -86,7 +86,7 @@ class SoviaDB {
       try {
         const transaction = this.db.transaction(['leads'], 'readwrite');
         const store = transaction.objectStore('leads');
-        const request = store.put(lead, lead['ID Leads']);
+        const request = store.put(lead, String(lead['ID Leads']));
 
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);
@@ -105,7 +105,7 @@ class SoviaDB {
       try {
         const transaction = this.db.transaction(['leads'], 'readwrite');
         const store = transaction.objectStore('leads');
-        const request = store.delete(leadId);
+        const request = store.delete(String(leadId));
 
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);
@@ -135,7 +135,7 @@ class SoviaDB {
         if (Array.isArray(leads) && leads.length > 0) {
           leads.forEach(lead => {
             if (lead && lead['ID Leads']) {
-              store.put(lead, lead['ID Leads']);
+              store.put(lead, String(lead['ID Leads']));
             }
           });
         }
@@ -166,6 +166,24 @@ class SoviaDB {
             else if (item.type === 'Block Lose') result.blocks = item.values || [];
             else if (item.type === 'MQL') result.mql = item.values || [];
           });
+
+          // Lengkapi data default jika belum ada opsi tersimpan
+          if (result.sales.length === 0 && result.channels.length === 0) {
+            result.sales = ['Admin Sales 1', 'Admin Sales 2', 'CS Online'];
+            result.channels = ['WhatsApp', 'Instagram', 'TikTok', 'Website'];
+            result.sources = ['Instagram Ads', 'TikTok Ads', 'Meta Ads', 'Organik'];
+            result.messages = ['Greeting / Halo', 'Tanya Model Cincin', 'Tanya Harga', 'Konsultasi Custom'];
+            result.blocks = ['Harga Terlalu Mahal', 'Tidak Ada Respon', 'Belum Butuh Sekarang'];
+            result.mql = ['MQL - Prospek Hangat', 'MQL - Follow Up'];
+
+            // Simpan ke IndexedDB
+            this.saveValidationOptions('Nama Sales', result.sales);
+            this.saveValidationOptions('Sumber Channel', result.channels);
+            this.saveValidationOptions('Sumber Leads', result.sources);
+            this.saveValidationOptions('Jenis Pesan', result.messages);
+            this.saveValidationOptions('Block Lose', result.blocks);
+            this.saveValidationOptions('MQL', result.mql);
+          }
 
           resolve(result);
         };
@@ -244,19 +262,7 @@ class SoviaDB {
    * Menghapus item tertentu dari antrean (setelah sukses dikirim ke GAS)
    */
   removeFromQueue(queueId) {
-    this._ensureDb();
-    return new Promise((resolve, reject) => {
-      try {
-        const transaction = this.db.transaction(['sync_queue'], 'readwrite');
-        const store = transaction.objectStore('sync_queue');
-        const request = store.delete(queueId);
-
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
-      } catch (err) {
-        reject(err);
-      }
-    });
+    return this.removeItemsFromQueue([queueId]);
   }
 
   /**

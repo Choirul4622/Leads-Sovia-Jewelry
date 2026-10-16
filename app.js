@@ -121,9 +121,7 @@ function switchPanel(panelId) {
   document.getElementById(`nav-${panelId}`).classList.add('active');
 
   // Aksi spesifik saat ganti panel
-  if (panelId === 'leads') {
-    resetLeadForm();
-  } else if (panelId === 'dashboard') {
+  if (panelId === 'dashboard') {
     renderDashboard();
   }
 }
@@ -265,11 +263,29 @@ function updateRemoveButtonsVisibility(containerId, rowClass, btnClass) {
 /**
  * Menambahkan satu baris item pada form rekapitulasi leads
  */
-function addLeadItemRow(sourceVal = '', messageVal = '', qtyVal = 1) {
+/**
+ * Menambahkan satu baris item pada form rekapitulasi leads
+ * @param {string} sourceVal - Sumber leads terpilih
+ * @param {string} messageVal - Jenis pesan terpilih
+ * @param {number} qtyVal - Jumlah leads
+ * @param {Array|string} contactsVal - Daftar kontak / nomor HP (jika ada)
+ */
+function addLeadItemRow(sourceVal = '', messageVal = '', qtyVal = 1, contactsVal = []) {
   const container = document.getElementById('leads-items-container');
   if (!container) return;
 
-  const rowId = `lead-item-row-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+  const rowId = `lead-item-row-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+
+  // Normalisasi data kontak ke array
+  let contactsList = [];
+  if (Array.isArray(contactsVal)) {
+    contactsList = contactsVal.map(c => String(c).trim()).filter(Boolean);
+  } else if (contactsVal && contactsVal !== '-') {
+    contactsList = String(contactsVal).split(',').map(c => c.trim()).filter(Boolean);
+  }
+
+  const hasContacts = contactsList.length > 0;
+  const initialQty = hasContacts ? contactsList.length : (qtyVal || 1);
 
   let sourceOptionsHtml = '<option value="">-- Pilih Sumber --</option>';
   (validationOptions.sources || []).forEach(opt => {
@@ -283,29 +299,224 @@ function addLeadItemRow(sourceVal = '', messageVal = '', qtyVal = 1) {
 
   const rowHtml = `
     <div class="lead-item-row" id="${rowId}">
-      <div class="form-group">
-        <label>Sumber Leads</label>
-        <select class="form-control lead-item-source">
-          ${sourceOptionsHtml}
-        </select>
+      <div class="lead-item-main-grid">
+        <div class="form-group">
+          <label>Sumber Leads</label>
+          <select class="form-control lead-item-source">
+            ${sourceOptionsHtml}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Jenis Pesan</label>
+          <select class="form-control lead-item-message">
+            ${messageOptionsHtml}
+          </select>
+        </div>
+        <div class="contact-toggle-wrapper">
+          <label class="contact-toggle-label ${hasContacts ? 'active' : ''}" id="toggle-label-${rowId}">
+            <input type="checkbox" class="lead-item-contact-toggle" ${hasContacts ? 'checked' : ''} onchange="toggleContactMode('${rowId}')">
+            <span>Input Kontak / No HP</span>
+          </label>
+        </div>
+        <div class="form-group">
+          <label>Qty / Jumlah</label>
+          <input type="number" class="form-control lead-item-qty ${hasContacts ? 'qty-auto-disabled' : ''}" min="1" value="${initialQty}" ${hasContacts ? 'disabled' : ''} title="${hasContacts ? 'Qty terisi otomatis berdasarkan jumlah kontak' : 'Isi jumlah leads'}">
+        </div>
+        <button type="button" class="btn-action delete btn-remove-item-row" onclick="removeLeadItemRow('${rowId}')" style="height: 42px; width: 42px; display: flex; align-items: center; justify-content: center; background-color: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 6px;" title="Hapus Baris">
+          <svg viewBox="0 0 24 24" style="width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2;"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+        </button>
       </div>
-      <div class="form-group">
-        <label>Jenis Pesan</label>
-        <select class="form-control lead-item-message">
-          ${messageOptionsHtml}
-        </select>
+
+      <!-- Container Multiple Baris Kontak / Nomor HP -->
+      <div class="lead-item-contacts-container" id="contacts-container-${rowId}" style="display: ${hasContacts ? 'block' : 'none'};">
+        <div class="contacts-header-bar">
+          <div class="contacts-header-title">
+            <svg viewBox="0 0 24 24" style="width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2;"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg>
+            Daftar Kontak / No HP
+            <span class="badge synced contact-count-badge" id="contact-badge-${rowId}">${hasContacts ? contactsList.length + ' Nomor Diisi' : '0 Nomor Diisi'}</span>
+          </div>
+          <button type="button" class="btn-add-contact-sub" onclick="addContactSubRow('${rowId}')">
+            <svg viewBox="0 0 24 24" style="width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2;"><path d="M12 5v14M5 12h14"/></svg>
+            Tambah Kontak
+          </button>
+        </div>
+        
+        <div class="contacts-list-grid" id="contacts-list-${rowId}">
+          <!-- Sub-baris kontak diisi via JS -->
+        </div>
+        <p style="font-size: 0.75rem; color: var(--text-muted); margin: 0; font-style: italic;">
+          * Tips: Anda dapat mem-paste beberapa nomor sekaligus (dipisahkan koma atau baris baru). Kolom Qty otomatis terkunci dan terisi sesuai jumlah kontak.
+        </p>
       </div>
-      <div class="form-group">
-        <label>Qty / Jumlah</label>
-        <input type="number" class="form-control lead-item-qty" min="1" value="${qtyVal}">
-      </div>
-      <button type="button" class="btn-action delete btn-remove-item-row" onclick="removeLeadItemRow('${rowId}')" style="height: 42px; width: 42px; display: flex; align-items: center; justify-content: center; background-color: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 6px;" title="Hapus Baris">
-        <svg viewBox="0 0 24 24" style="width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2;"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
-      </button>
     </div>
   `;
   container.insertAdjacentHTML('beforeend', rowHtml);
+
+  // Inisialisasi sub-baris kontak
+  if (hasContacts) {
+    contactsList.forEach(c => addContactSubRow(rowId, c, false));
+    updateContactRowIndices(rowId);
+  } else {
+    // Siapkan 1 baris kosong awal jika nanti diaktifkan
+    addContactSubRow(rowId, '', false);
+    updateContactRowIndices(rowId);
+  }
+
   updateRemoveButtonsVisibility('leads-items-container', 'lead-item-row', 'btn-remove-item-row');
+}
+
+/**
+ * Toggle mode input kontak / no hp untuk baris rekap
+ */
+function toggleContactMode(rowId) {
+  const row = document.getElementById(rowId);
+  if (!row) return;
+
+  const toggle = row.querySelector('.lead-item-contact-toggle');
+  const toggleLabel = document.getElementById(`toggle-label-${rowId}`);
+  const contactsContainer = document.getElementById(`contacts-container-${rowId}`);
+  const qtyInput = row.querySelector('.lead-item-qty');
+
+  if (!toggle || !contactsContainer || !qtyInput) return;
+
+  if (toggle.checked) {
+    contactsContainer.style.display = 'block';
+    if (toggleLabel) toggleLabel.classList.add('active');
+    qtyInput.disabled = true;
+    qtyInput.classList.add('qty-auto-disabled');
+    qtyInput.title = 'Qty terisi otomatis berdasarkan jumlah kontak yang diinput.';
+    
+    // Pastikan minimal ada 1 sub-row
+    const subRows = row.querySelectorAll('.contact-sub-row');
+    if (subRows.length === 0) {
+      addContactSubRow(rowId, '', false);
+      updateContactRowIndices(rowId);
+    }
+    updateContactQtyForRow(rowId);
+  } else {
+    contactsContainer.style.display = 'none';
+    if (toggleLabel) toggleLabel.classList.remove('active');
+    qtyInput.disabled = false;
+    qtyInput.classList.remove('qty-auto-disabled');
+    qtyInput.title = 'Isi jumlah leads secara manual.';
+    if (!qtyInput.value || parseInt(qtyInput.value, 10) <= 0) {
+      qtyInput.value = 1;
+    }
+  }
+}
+
+/**
+ * Menambahkan 1 sub-baris kontak ke dalam lead item row
+ */
+function addContactSubRow(rowId, val = '', autoUpdate = true) {
+  const listContainer = document.getElementById(`contacts-list-${rowId}`);
+  if (!listContainer) return;
+
+  const subRowHtml = `
+    <div class="contact-sub-row">
+      <span class="contact-index">#1</span>
+      <input type="text" class="form-control contact-phone-input" placeholder="Contoh: 08123456789 atau nama customer" value="${escapeHtml(val)}" oninput="onContactInputChanged('${rowId}')" onpaste="handleContactPaste(event, '${rowId}')">
+      <button type="button" class="btn-remove-contact-sub" onclick="removeContactSubRow(this, '${rowId}')" title="Hapus kontak ini">
+        <svg viewBox="0 0 24 24" style="width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2;"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+    </div>
+  `;
+  listContainer.insertAdjacentHTML('beforeend', subRowHtml);
+  updateContactRowIndices(rowId);
+
+  if (autoUpdate) {
+    updateContactQtyForRow(rowId);
+  }
+}
+
+/**
+ * Menghapus 1 sub-baris kontak
+ */
+function removeContactSubRow(btnEl, rowId) {
+  const subRow = btnEl.closest('.contact-sub-row');
+  if (subRow) {
+    subRow.remove();
+  }
+  const listContainer = document.getElementById(`contacts-list-${rowId}`);
+  if (listContainer && listContainer.querySelectorAll('.contact-sub-row').length === 0) {
+    addContactSubRow(rowId, '', false);
+  }
+  updateContactRowIndices(rowId);
+  updateContactQtyForRow(rowId);
+}
+
+/**
+ * Update penomoran indeks sub-baris kontak (#1, #2, dst)
+ */
+function updateContactRowIndices(rowId) {
+  const listContainer = document.getElementById(`contacts-list-${rowId}`);
+  if (!listContainer) return;
+  const subRows = listContainer.querySelectorAll('.contact-sub-row');
+  subRows.forEach((row, idx) => {
+    const idxEl = row.querySelector('.contact-index');
+    if (idxEl) idxEl.innerText = `#${idx + 1}`;
+  });
+}
+
+/**
+ * Event handler saat input kontak berubah
+ */
+function onContactInputChanged(rowId) {
+  updateContactQtyForRow(rowId);
+}
+
+/**
+ * Update otomatis Qty dan Badge berdasarkan jumlah kontak yang diisi
+ */
+function updateContactQtyForRow(rowId) {
+  const row = document.getElementById(rowId);
+  if (!row) return;
+
+  const toggle = row.querySelector('.lead-item-contact-toggle');
+  const qtyInput = row.querySelector('.lead-item-qty');
+  const badge = document.getElementById(`contact-badge-${rowId}`);
+  if (!toggle || !qtyInput) return;
+
+  if (toggle.checked) {
+    qtyInput.disabled = true;
+    qtyInput.classList.add('qty-auto-disabled');
+
+    const inputs = row.querySelectorAll('.contact-phone-input');
+    const filledValues = Array.from(inputs).map(inp => inp.value.trim()).filter(Boolean);
+    const count = filledValues.length;
+
+    qtyInput.value = count > 0 ? count : (inputs.length > 0 ? inputs.length : 1);
+
+    if (badge) {
+      badge.innerText = `${count} Nomor Diisi`;
+    }
+  } else {
+    qtyInput.disabled = false;
+    qtyInput.classList.remove('qty-auto-disabled');
+  }
+}
+
+/**
+ * Handler paste pintar: memisahkan nomor otomatis jika paste banyak nomor
+ */
+function handleContactPaste(event, rowId) {
+  const pasteData = (event.clipboardData || window.clipboardData)?.getData('text') || '';
+  if (!pasteData) return;
+
+  const numbers = pasteData.split(/[\r\n,;]+/).map(s => s.trim()).filter(Boolean);
+  if (numbers.length > 1) {
+    event.preventDefault();
+    const listContainer = document.getElementById(`contacts-list-${rowId}`);
+    if (!listContainer) return;
+
+    listContainer.innerHTML = '';
+    numbers.forEach(num => {
+      addContactSubRow(rowId, num, false);
+    });
+    updateContactRowIndices(rowId);
+    updateContactQtyForRow(rowId);
+    showToast(`Berhasil menambahkan ${numbers.length} nomor kontak dari teks yang di-paste.`, 'info');
+  }
 }
 
 /**
@@ -326,7 +537,7 @@ function addTerhentiRow(blockVal = '', qtyVal = 1) {
   const container = document.getElementById('terhenti-items-container');
   if (!container) return;
 
-  const rowId = `terhenti-item-row-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+  const rowId = `terhenti-item-row-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
 
   let blockOptionsHtml = '<option value="">-- Pilih Block/Lose --</option>';
   (validationOptions.blocks || []).forEach(opt => {
@@ -372,7 +583,7 @@ function addLamaRow(mqlVal = '', qtyVal = 1) {
   const container = document.getElementById('lama-items-container');
   if (!container) return;
 
-  const rowId = `lama-item-row-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+  const rowId = `lama-item-row-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
 
   let mqlOptionsHtml = '<option value="">-- Pilih MQL --</option>';
   (validationOptions.mql || []).forEach(opt => {
@@ -515,8 +726,26 @@ async function handleLeadSubmit(event) {
     rekapRows.forEach((row, i) => {
       const source = row.querySelector('.lead-item-source')?.value || '';
       const message = row.querySelector('.lead-item-message')?.value || '';
-      const qty = parseInt(row.querySelector('.lead-item-qty')?.value, 10) || 1;
-      if (source || message) {
+      
+      const toggle = row.querySelector('.lead-item-contact-toggle');
+      const isContactActive = toggle && toggle.checked;
+
+      let contacts = [];
+      if (isContactActive) {
+        const contactInputs = row.querySelectorAll('.contact-phone-input');
+        contacts = Array.from(contactInputs).map(inp => inp.value.trim()).filter(Boolean);
+      }
+
+      let qty = 1;
+      if (isContactActive) {
+        qty = contacts.length > 0 ? contacts.length : 1;
+      } else {
+        qty = parseInt(row.querySelector('.lead-item-qty')?.value, 10) || 1;
+      }
+
+      const contactStr = (isContactActive && contacts.length > 0) ? contacts.join(', ') : '-';
+
+      if (source || message || contacts.length > 0) {
         rowsToSave.push({
           type: 'rekap',
           tempId: `${idLeads}-R${i + 1}`,
@@ -525,6 +754,9 @@ async function handleLeadSubmit(event) {
             'Jenis Pesan': message || '-',
             'Block Lose': '-',
             'MQL': '-',
+            'Kontak / No HP': contactStr,
+            'Kontak': contactStr,
+            'Kontak List': contacts,
             'Qty': qty
           }
         });
@@ -545,6 +777,9 @@ async function handleLeadSubmit(event) {
             'Jenis Pesan': '-',
             'Block Lose': block,
             'MQL': '-',
+            'Kontak / No HP': '-',
+            'Kontak': '-',
+            'Kontak List': [],
             'Qty': qty
           }
         });
@@ -565,6 +800,9 @@ async function handleLeadSubmit(event) {
             'Jenis Pesan': '-',
             'Block Lose': '-',
             'MQL': mql,
+            'Kontak / No HP': '-',
+            'Kontak': '-',
+            'Kontak List': [],
             'Qty': qty
           }
         });
@@ -593,6 +831,9 @@ async function handleLeadSubmit(event) {
         'Jenis Pesan': item.data['Jenis Pesan'],
         'Block Lose': item.data['Block Lose'],
         'MQL': item.data['MQL'],
+        'Kontak / No HP': item.data['Kontak / No HP'] || '-',
+        'Kontak': item.data['Kontak'] || '-',
+        'Kontak List': item.data['Kontak List'] || [],
         'Qty': item.data['Qty'],
         'Timestamp Created': new Date().toISOString(),
         'Timestamp Updated': new Date().toISOString(),
@@ -615,6 +856,8 @@ async function handleLeadSubmit(event) {
     let block = '-';
     let mql = '-';
     let qty = 1;
+    let contactStr = '-';
+    let contacts = [];
 
     const rekapSection = document.getElementById('leads-items-container')?.parentElement;
     const terhentiSection = document.getElementById('terhenti-items-container')?.parentElement;
@@ -627,7 +870,17 @@ async function handleLeadSubmit(event) {
     if (rekapSection && rekapSection.style.display !== 'none' && rekapRow) {
       source = rekapRow.querySelector('.lead-item-source')?.value || '-';
       message = rekapRow.querySelector('.lead-item-message')?.value || '-';
-      qty = parseInt(rekapRow.querySelector('.lead-item-qty')?.value, 10) || 1;
+      const toggle = rekapRow.querySelector('.lead-item-contact-toggle');
+      const isContactActive = toggle && toggle.checked;
+      if (isContactActive) {
+        const contactInputs = rekapRow.querySelectorAll('.contact-phone-input');
+        contacts = Array.from(contactInputs).map(inp => inp.value.trim()).filter(Boolean);
+        qty = contacts.length > 0 ? contacts.length : 1;
+        contactStr = contacts.length > 0 ? contacts.join(', ') : '-';
+      } else {
+        qty = parseInt(rekapRow.querySelector('.lead-item-qty')?.value, 10) || 1;
+        contactStr = '-';
+      }
     } else if (terhentiSection && terhentiSection.style.display !== 'none' && terhentiRow) {
       block = terhentiRow.querySelector('.terhenti-item-block')?.value || '-';
       qty = parseInt(terhentiRow.querySelector('.terhenti-item-qty')?.value, 10) || 1;
@@ -648,6 +901,9 @@ async function handleLeadSubmit(event) {
       'Jenis Pesan': message,
       'Block Lose': block,
       'MQL': mql,
+      'Kontak / No HP': contactStr,
+      'Kontak': contactStr,
+      'Kontak List': contacts,
       'Qty': qty,
       'Timestamp Created': originalCreated,
       'Timestamp Updated': new Date().toISOString(),
@@ -727,7 +983,15 @@ async function editLead(leadId) {
     rekapSection.style.display = 'block';
     terhentiSection.style.display = 'none';
     lamaSection.style.display = 'none';
-    addLeadItemRow(lead['Sumber Leads'], lead['Jenis Pesan'], lead['Qty']);
+    
+    const rawContact = lead['Kontak / No HP'] || lead['Kontak'] || '';
+    let contactsList = [];
+    if (Array.isArray(lead['Kontak List']) && lead['Kontak List'].length > 0) {
+      contactsList = lead['Kontak List'];
+    } else if (rawContact && rawContact !== '-') {
+      contactsList = String(rawContact).split(',').map(s => s.trim()).filter(Boolean);
+    }
+    addLeadItemRow(lead['Sumber Leads'], lead['Jenis Pesan'], lead['Qty'], contactsList);
   }
 
   // Sembunyikan semua tombol "Tambah Baris" saat mode edit
@@ -817,7 +1081,7 @@ async function renderHistoryTable() {
   if (!tbody) return;
 
   if (historyFilteredLeads.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="11" class="no-data-msg">Tidak ada data rekapitulasi leads ditemukan.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="12" class="no-data-msg">Tidak ada data rekapitulasi leads ditemukan.</td></tr>`;
     updatePaginationUI();
     return;
   }
@@ -848,6 +1112,23 @@ async function renderHistoryTable() {
           Synced
          </span>`;
 
+    // Format kontak / nomor HP
+    const rawContact = lead['Kontak / No HP'] || lead['Kontak'] || '-';
+    let contactCell = '<span style="color: var(--text-muted);">-</span>';
+    if (rawContact && rawContact !== '-') {
+      const parts = String(rawContact).split(',').map(s => s.trim()).filter(Boolean);
+      if (parts.length === 1) {
+        contactCell = `<span style="font-family: monospace; font-size: 0.82rem; color: var(--gold-hover);">${escapeHtml(parts[0])}</span>`;
+      } else if (parts.length > 1) {
+        contactCell = `
+          <div style="display: flex; flex-direction: column; gap: 0.15rem;">
+            <span style="font-family: monospace; font-size: 0.82rem; color: var(--gold-hover);">${escapeHtml(parts[0])}</span>
+            <span class="badge synced" style="font-size: 0.68rem; padding: 0.15rem 0.45rem; cursor: help; align-self: flex-start;" title="${escapeHtml(rawContact)}">+${parts.length - 1} nomor</span>
+          </div>
+        `;
+      }
+    }
+
     // Render baris secara batch dengan HTML escaping
     rowsHtml.push(`
       <tr>
@@ -859,6 +1140,7 @@ async function renderHistoryTable() {
         <td>${escapeHtml(lead['Jenis Pesan'] || '-')}</td>
         <td>${escapeHtml(lead['Block Lose'] || '-')}</td>
         <td>${escapeHtml(lead['MQL'] || '-')}</td>
+        <td>${contactCell}</td>
         <td>${escapeHtml(lead['Qty'])}</td>
         <td>${badgeHtml}</td>
         <td style="text-align: center;">
@@ -962,7 +1244,9 @@ function filterHistoryTable() {
         (lead['Sumber Leads'] || '').toLowerCase().includes(query) ||
         (lead['Jenis Pesan'] || '').toLowerCase().includes(query) ||
         (lead['Block Lose'] || '').toLowerCase().includes(query) ||
-        (lead['MQL'] || '').toLowerCase().includes(query)
+        (lead['MQL'] || '').toLowerCase().includes(query) ||
+        (lead['Kontak / No HP'] || '').toLowerCase().includes(query) ||
+        (lead['Kontak'] || '').toLowerCase().includes(query)
       );
     }
     
@@ -1161,20 +1445,39 @@ function selectSalesDashboard(salesName) {
  */
 function renderChannelDetailRows(channelLeads) {
   if (!channelLeads || channelLeads.length === 0) {
-    return `<tr><td colspan="4" class="no-data-msg">Tidak ada data leads sales pada channel ini.</td></tr>`;
+    return `<tr><td colspan="5" class="no-data-msg">Tidak ada data leads sales pada channel ini.</td></tr>`;
   }
 
   // Group data by Sales -> Source -> Message Type
   const groups = {};
   channelLeads.forEach(lead => {
-    const sales = lead['Nama Sales'] || 'Tidak Diketahui';
-    const source = lead['Sumber Leads'] || 'Tidak Diketahui';
-    const msg = lead['Jenis Pesan'] || 'Tidak Diketahui';
+    const sales = (lead['Nama Sales'] || 'Tidak Diketahui').trim();
+    const source = (lead['Sumber Leads'] || 'Tidak Diketahui').trim();
+    const msg = (lead['Jenis Pesan'] || 'Tidak Diketahui').trim();
     const qty = parseInt(lead['Qty'], 10) || 0;
+
+    // Ambil nomor kontak
+    const rawContact = lead['Kontak / No HP'] || lead['Kontak'] || '';
+    let contactsList = [];
+    if (Array.isArray(lead['Kontak List']) && lead['Kontak List'].length > 0) {
+      contactsList = lead['Kontak List'];
+    } else if (rawContact && rawContact !== '-') {
+      contactsList = String(rawContact).split(',').map(s => s.trim()).filter(Boolean);
+    }
 
     if (!groups[sales]) groups[sales] = {};
     if (!groups[sales][source]) groups[sales][source] = {};
-    groups[sales][source][msg] = (groups[sales][source][msg] || 0) + qty;
+    if (!groups[sales][source][msg]) {
+      groups[sales][source][msg] = { qty: 0, contacts: [] };
+    }
+    groups[sales][source][msg].qty += qty;
+    if (contactsList.length > 0) {
+      contactsList.forEach(c => {
+        if (!groups[sales][source][msg].contacts.includes(c)) {
+          groups[sales][source][msg].contacts.push(c);
+        }
+      });
+    }
   });
 
   // Flatten ke list baris
@@ -1185,7 +1488,14 @@ function renderChannelDetailRows(channelLeads) {
     sortedSourceKeys.forEach(source => {
       const sortedMsgKeys = Object.keys(groups[sales][source]).sort();
       sortedMsgKeys.forEach(msg => {
-        rows.push({ sales, source, msg, qty: groups[sales][source][msg] });
+        const item = groups[sales][source][msg];
+        rows.push({
+          sales,
+          source,
+          msg,
+          contacts: item.contacts,
+          qty: item.qty
+        });
       });
     });
   });
@@ -1228,6 +1538,29 @@ function renderChannelDetailRows(channelLeads) {
       html += `<td rowspan="${sourceSpan[rIdx]}" style="vertical-align: top; border-right: 1px solid var(--border-color);">${escapeHtml(row.source)}</td>`;
     }
     html += `<td style="border-right: 1px solid var(--border-color);">${escapeHtml(row.msg)}</td>`;
+    
+    // Format Kontak / Nomor HP
+    let contactCell = '<span style="color: var(--text-muted);">-</span>';
+    if (row.contacts && row.contacts.length > 0) {
+      if (row.contacts.length <= 3) {
+        contactCell = `<div style="display: flex; flex-direction: column; gap: 0.25rem;">` +
+          row.contacts.map(c => `<span style="font-family: monospace; font-size: 0.82rem; color: var(--gold-hover);">${escapeHtml(c)}</span>`).join('') +
+          `</div>`;
+      } else {
+        contactCell = `
+          <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+            <span style="font-family: monospace; font-size: 0.82rem; color: var(--gold-hover);">${escapeHtml(row.contacts.slice(0, 2).join(', '))}</span>
+            <details style="cursor: pointer;">
+              <summary style="font-size: 0.75rem; color: var(--gold-primary); outline: none;">+${row.contacts.length - 2} nomor lainnya</summary>
+              <div style="display: flex; flex-direction: column; gap: 0.2rem; margin-top: 0.3rem;">
+                ${row.contacts.slice(2).map(c => `<span style="font-family: monospace; font-size: 0.8rem; color: var(--text-muted);">${escapeHtml(c)}</span>`).join('')}
+              </div>
+            </details>
+          </div>
+        `;
+      }
+    }
+    html += `<td style="border-right: 1px solid var(--border-color);">${contactCell}</td>`;
     html += `<td><span style="color: var(--gold-primary); font-weight: 600;">${row.qty} Leads</span></td>`;
     html += '</tr>';
   });
@@ -1253,8 +1586,8 @@ function renderDashboard() {
 
   // 1. Hitung total transaksi dan qty keseluruhan (hanya leads sales / rekap, tanpa Block Lose & MQL)
   const rekapOnlyLeads = filteredLeads.filter(l =>
-    l['Sumber Leads'] && l['Sumber Leads'] !== '-' &&
-    l['Jenis Pesan'] && l['Jenis Pesan'] !== '-'
+    (!l['Block Lose'] || l['Block Lose'] === '-') &&
+    (!l['MQL'] || l['MQL'] === '-')
   );
 
   const totalLeadsCount = rekapOnlyLeads.length;
@@ -1367,6 +1700,7 @@ function renderDashboard() {
                     <th>Nama Sales</th>
                     <th>Sumber Leads</th>
                     <th>Jenis Pesan</th>
+                    <th>Kontak / Nomor HP</th>
                     <th>Total Leads</th>
                   </tr>
                 </thead>
@@ -1445,7 +1779,7 @@ function renderDashboard() {
   // Calculate terhentiLeads and lamaLeads earlier if needed, or just do it here
   const globalTerhentiLeads = selectedSalesDashboard === 'Semua Sales'
     ? filteredLeads.filter(l => l['Block Lose'] && l['Block Lose'] !== '-')
-    : filteredLeads.filter(l => l['Nama Sales'] === selectedSalesDashboard && l['Block Lose'] && l['Block Lose'] !== '-');
+    : filteredLeads.filter(l => (l['Nama Sales'] || '').trim() === selectedSalesDashboard && l['Block Lose'] && l['Block Lose'] !== '-');
   const globalTerhentiQty = globalTerhentiLeads.reduce((acc, curr) => acc + (parseInt(curr['Qty'], 10) || 0), 0);
 
   // 3b. Render Analitik Per Block Lose Global
@@ -1482,7 +1816,7 @@ function renderDashboard() {
   // 3c. Render Analitik Per MQL Global
   const globalLamaLeads = selectedSalesDashboard === 'Semua Sales'
     ? filteredLeads.filter(l => l['MQL'] && l['MQL'] !== '-')
-    : filteredLeads.filter(l => l['Nama Sales'] === selectedSalesDashboard && l['MQL'] && l['MQL'] !== '-');
+    : filteredLeads.filter(l => (l['Nama Sales'] || '').trim() === selectedSalesDashboard && l['MQL'] && l['MQL'] !== '-');
   const globalLamaQty = globalLamaLeads.reduce((acc, curr) => acc + (parseInt(curr['Qty'], 10) || 0), 0);
 
   const mqlContainer = document.getElementById('mql-analytics-container');
@@ -1520,8 +1854,8 @@ function renderDashboard() {
   
   // Filter leads rekap sesuai dengan sales terpilih (yang bukan chat terhenti / chat lama)
   const drilldownLeads = selectedSalesDashboard === 'Semua Sales'
-    ? filteredLeads.filter(l => l['Sumber Leads'] && l['Sumber Leads'] !== '-' && l['Jenis Pesan'] && l['Jenis Pesan'] !== '-')
-    : filteredLeads.filter(l => l['Nama Sales'] === selectedSalesDashboard && l['Sumber Leads'] && l['Sumber Leads'] !== '-' && l['Jenis Pesan'] && l['Jenis Pesan'] !== '-');
+    ? filteredLeads.filter(l => (!l['Block Lose'] || l['Block Lose'] === '-') && (!l['MQL'] || l['MQL'] === '-'))
+    : filteredLeads.filter(l => (l['Nama Sales'] || '').trim() === selectedSalesDashboard && (!l['Block Lose'] || l['Block Lose'] === '-') && (!l['MQL'] || l['MQL'] === '-'));
 
   const drilldownQty = drilldownLeads.reduce((acc, curr) => acc + (parseInt(curr['Qty'], 10) || 0), 0);
   document.getElementById('drilldown-sales-qty').innerText = `Total: ${drilldownQty} Leads (${drilldownLeads.length} Recap)`;
@@ -1640,7 +1974,7 @@ function renderDashboard() {
   
   const terhentiLeads = selectedSalesDashboard === 'Semua Sales'
     ? filteredLeads.filter(l => l['Block Lose'] && l['Block Lose'] !== '-')
-    : filteredLeads.filter(l => l['Nama Sales'] === selectedSalesDashboard && l['Block Lose'] && l['Block Lose'] !== '-');
+    : filteredLeads.filter(l => (l['Nama Sales'] || '').trim() === selectedSalesDashboard && l['Block Lose'] && l['Block Lose'] !== '-');
 
   const terhentiQty = terhentiLeads.reduce((acc, curr) => acc + (parseInt(curr['Qty'], 10) || 0), 0);
   document.getElementById('drilldown-terhenti-qty').innerText = `Total: ${terhentiQty} Leads (${terhentiLeads.length} Recap)`;
@@ -1730,7 +2064,7 @@ function renderDashboard() {
   
   const lamaLeads = selectedSalesDashboard === 'Semua Sales'
     ? filteredLeads.filter(l => l['MQL'] && l['MQL'] !== '-')
-    : filteredLeads.filter(l => l['Nama Sales'] === selectedSalesDashboard && l['MQL'] && l['MQL'] !== '-');
+    : filteredLeads.filter(l => (l['Nama Sales'] || '').trim() === selectedSalesDashboard && l['MQL'] && l['MQL'] !== '-');
 
   const lamaQty = lamaLeads.reduce((acc, curr) => acc + (parseInt(curr['Qty'], 10) || 0), 0);
   document.getElementById('drilldown-lama-qty').innerText = `Total: ${lamaQty} Leads (${lamaLeads.length} Recap)`;

@@ -33,6 +33,8 @@ class SoviaSync {
       isSyncing: this.isSyncing,
       pendingCount: 0
     });
+    // Segera perbarui dengan data antrean aktual
+    this.notifyListeners();
   }
 
   /**
@@ -278,16 +280,22 @@ class SoviaSync {
     
     // Ambil daftar ID Leads yang masih memiliki antrean edit/delete lokal
     const pendingLeadIds = new Set();
+    const deletedPendingIds = new Set();
     const pendingValidationTypes = new Set();
     
     queue.forEach(item => {
-      if (item.id) pendingLeadIds.add(item.id);
+      const safeId = String(item.id || '').trim();
+      if (item.action === 'delete_lead' && safeId) {
+        deletedPendingIds.add(safeId);
+      } else if (safeId) {
+        pendingLeadIds.add(safeId);
+      }
       if (item.action === 'update_options') pendingValidationTypes.add(item.type);
     });
 
     // 1. Merge Leads
     const currentLocalLeads = await window.soviaDb.getLeads();
-    const localLeadsMap = new Map(currentLocalLeads.map(l => [l['ID Leads'], l]));
+    const localLeadsMap = new Map(currentLocalLeads.map(l => [String(l['ID Leads'] || '').trim(), l]));
     
     const leadsToSave = [];
     
@@ -295,9 +303,15 @@ class SoviaSync {
     const serverLeadIds = new Set();
     if (serverData.leads) {
       serverData.leads.forEach(serverLead => {
-        const leadId = serverLead['ID Leads'];
+        const leadId = String(serverLead['ID Leads'] || '').trim();
+        if (!leadId) return;
         serverLeadIds.add(leadId);
         
+        // Jika lead sedang diantrekan untuk dihapus lokal, abaikan versi server
+        if (deletedPendingIds.has(leadId)) {
+          return;
+        }
+
         // Jika lead tidak memiliki antrean perubahan lokal, ikuti server
         if (!pendingLeadIds.has(leadId)) {
           leadsToSave.push(serverLead);
@@ -313,7 +327,8 @@ class SoviaSync {
 
     // Pertahankan juga leads lokal yang baru dibuat offline dan belum ada di server
     currentLocalLeads.forEach(localLead => {
-      const leadId = localLead['ID Leads'];
+      const leadId = String(localLead['ID Leads'] || '').trim();
+      if (!leadId || deletedPendingIds.has(leadId)) return;
       if (!serverLeadIds.has(leadId) && pendingLeadIds.has(leadId)) {
         leadsToSave.push(localLead);
       }
