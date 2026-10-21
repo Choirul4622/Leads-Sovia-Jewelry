@@ -121,6 +121,11 @@ class SoviaDB {
   saveLeadsBulk(leads) {
     this._ensureDb();
     return new Promise((resolve, reject) => {
+      if (!Array.isArray(leads)) {
+        resolve();
+        return;
+      }
+
       try {
         const transaction = this.db.transaction(['leads'], 'readwrite');
         const store = transaction.objectStore('leads');
@@ -132,10 +137,10 @@ class SoviaDB {
         // Hapus data lama agar sinkron sempurna dengan server
         store.clear();
         
-        if (Array.isArray(leads) && leads.length > 0) {
+        if (leads.length > 0) {
           leads.forEach(lead => {
             if (lead && lead['ID Leads']) {
-              store.put(lead, String(lead['ID Leads']));
+              store.put(lead, String(lead['ID Leads']).trim());
             }
           });
         }
@@ -170,11 +175,11 @@ class SoviaDB {
           // Lengkapi data default jika belum ada opsi tersimpan
           if (result.sales.length === 0 && result.channels.length === 0) {
             result.sales = ['Admin Sales 1', 'Admin Sales 2', 'CS Online'];
-            result.channels = ['WhatsApp', 'Instagram', 'TikTok', 'Website'];
-            result.sources = ['Instagram Ads', 'TikTok Ads', 'Meta Ads', 'Organik'];
-            result.messages = ['Greeting / Halo', 'Tanya Model Cincin', 'Tanya Harga', 'Konsultasi Custom'];
-            result.blocks = ['Harga Terlalu Mahal', 'Tidak Ada Respon', 'Belum Butuh Sekarang'];
-            result.mql = ['MQL - Prospek Hangat', 'MQL - Follow Up'];
+            result.channels = ['WhatsApp', 'Instagram', 'TikTok', 'Website', 'QONTAK', 'SHOPEE', 'TOKOPEDIA'];
+            result.sources = ['Instagram Ads', 'TikTok Ads', 'Meta Ads', 'Organik', 'Website'];
+            result.messages = ['Greeting / Halo', 'Regular', 'Tanya Model Cincin', 'Tanya Harga', 'Konsultasi Custom'];
+            result.blocks = ['Harga Terlalu Mahal', 'Tidak Ada Respon', 'Belum Butuh Sekarang', 'Sapaan', 'Tanya Harga'];
+            result.mql = ['MQL - Prospek Hangat', 'MQL - Follow Up', 'Bukan lead baru'];
 
             // Simpan ke IndexedDB
             this.saveValidationOptions('Nama Sales', result.sales);
@@ -203,7 +208,7 @@ class SoviaDB {
       try {
         const transaction = this.db.transaction(['validation'], 'readwrite');
         const store = transaction.objectStore('validation');
-        const request = store.put({ type, values });
+        const request = store.put({ type, values: Array.isArray(values) ? values : [] });
 
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);
@@ -224,9 +229,9 @@ class SoviaDB {
         const store = transaction.objectStore('sync_queue');
         const queueItem = {
           action,
-          id,
-          type,
-          data,
+          id: id !== undefined && id !== null ? String(id).trim() : null,
+          type: type || null,
+          data: data || null,
           timestamp: Date.now()
         };
         
@@ -267,6 +272,7 @@ class SoviaDB {
 
   /**
    * Menghapus beberapa item dari antrean sekaligus (batch delete)
+   * Mendukung baik number maupun string key secara aman
    */
   removeItemsFromQueue(queueIds) {
     this._ensureDb();
@@ -285,6 +291,11 @@ class SoviaDB {
         transaction.onabort = () => reject(new Error('Transaction aborted'));
 
         queueIds.forEach(id => {
+          if (id === undefined || id === null) return;
+          const numId = Number(id);
+          if (!isNaN(numId) && Number.isInteger(numId)) {
+            store.delete(numId);
+          }
           store.delete(id);
         });
       } catch (err) {

@@ -28,12 +28,56 @@ function escapeHtml(str) {
 }
 
 /**
- * Helper: Ekstrak bagian tanggal YYYY-MM-DD secara konsisten dan aman
+ * Helper: Ekstrak bagian tanggal YYYY-MM-DD secara konsisten dan aman dari berbagai format string
  */
 function getLeadDateOnly(dateVal) {
   if (!dateVal) return '';
   const clean = String(dateVal).replace('T', ' ').trim();
-  return clean.split(' ')[0].substring(0, 10);
+  const firstPart = clean.split(' ')[0];
+  
+  // Format standar: YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(firstPart)) {
+    return firstPart;
+  }
+  
+  // Format Indonesia / Eropa: DD/MM/YYYY atau DD-MM-YYYY
+  const dmyMatch = firstPart.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (dmyMatch) {
+    const day = dmyMatch[1].padStart(2, '0');
+    const month = dmyMatch[2].padStart(2, '0');
+    const year = dmyMatch[3];
+    return `${year}-${month}-${day}`;
+  }
+
+  // Format YYYY/MM/DD
+  const ymdSlashMatch = firstPart.match(/^(\d{4})[\/](\d{1,2})[\/](\d{1,2})$/);
+  if (ymdSlashMatch) {
+    const year = ymdSlashMatch[1];
+    const month = ymdSlashMatch[2].padStart(2, '0');
+    const day = ymdSlashMatch[3].padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  return firstPart.substring(0, 10);
+}
+
+/**
+ * Helper: Mengubah nilai tanggal leads ke unix timestamp secara aman cross-browser (termasuk Safari iOS/Mac)
+ */
+function parseLeadDateToTime(dateVal) {
+  if (!dateVal) return 0;
+  const clean = String(dateVal).trim();
+  const isoLike = clean.replace(' ', 'T');
+  let t = new Date(isoLike).getTime();
+  if (!isNaN(t) && t > 0) return t;
+
+  const ymd = getLeadDateOnly(clean);
+  if (ymd) {
+    const timePart = clean.includes(' ') ? clean.split(' ')[1] : '00:00:00';
+    t = new Date(`${ymd}T${timePart}`).getTime();
+    if (!isNaN(t) && t > 0) return t;
+  }
+  return 0;
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -47,9 +91,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // 2. Load URL GAS dari LocalStorage (dengan default URL Web App Anda)
+  const defaultGasUrl = window.SOVIA_DEFAULT_GAS_URL || 'https://script.google.com/macros/s/AKfycbzZYlAh4oe5ZwRJAFNRZ-e31m_opHnxzBM8qDjAvHSj5XZkq-l8nJm5LjFhKLVFDqlkjw/exec';
   let savedUrl = localStorage.getItem('sovia_gas_url');
   if (!savedUrl) {
-    savedUrl = 'https://script.google.com/macros/s/AKfycbzZYlAh4oe5ZwRJAFNRZ-e31m_opHnxzBM8qDjAvHSj5XZkq-l8nJm5LjFhKLVFDqlkjw/exec';
+    savedUrl = defaultGasUrl;
     localStorage.setItem('sovia_gas_url', savedUrl);
   }
   const gasInput = document.getElementById('gas-url-input');
@@ -90,13 +135,12 @@ async function loadLocalDataAndRefreshUI() {
   currentLeads = await window.soviaDb.getLeads();
   validationOptions = await window.soviaDb.getValidationOptions();
 
-  // Urutkan leads berdasarkan tanggal leads terbaru di paling atas (aman dari nilai kosong/null)
+  // Urutkan leads berdasarkan tanggal leads terbaru di paling atas secara aman
   currentLeads.sort((a, b) => {
-    const strA = (a['Tanggal Leads'] || '').replace(' ', 'T');
-    const strB = (b['Tanggal Leads'] || '').replace(' ', 'T');
-    const timeA = strA ? new Date(strA).getTime() : 0;
-    const timeB = strB ? new Date(strB).getTime() : 0;
-    return (isNaN(timeB) ? 0 : timeB) - (isNaN(timeA) ? 0 : timeA);
+    const timeA = parseLeadDateToTime(a['Tanggal Leads']);
+    const timeB = parseLeadDateToTime(b['Tanggal Leads']);
+    if (timeB !== timeA) return timeB - timeA;
+    return String(b['ID Leads'] || '').localeCompare(String(a['ID Leads'] || ''));
   });
 
   // Rerender seluruh komponen UI
@@ -260,9 +304,6 @@ function updateRemoveButtonsVisibility(containerId, rowClass, btnClass) {
   });
 }
 
-/**
- * Menambahkan satu baris item pada form rekapitulasi leads
- */
 /**
  * Menambahkan satu baris item pada form rekapitulasi leads
  * @param {string} sourceVal - Sumber leads terpilih
@@ -1211,7 +1252,42 @@ function resetHistoryDateFilter(triggerRender = true) {
   
   if (triggerRender) {
     filterHistoryTable();
+    showToast('Filter riwayat diatur ke Hari Ini.', 'info');
   }
+}
+
+/**
+ * Filter riwayat ke bulan berjalan (Bulan Ini)
+ */
+function showMonthHistoryDates() {
+  const today = new Date();
+  const tzOffset = today.getTimezoneOffset() * 60000;
+  const localToday = new Date(today - tzOffset);
+  const localDateStr = localToday.toISOString().split('T')[0];
+  const firstDayOfMonth = `${localDateStr.substring(0, 7)}-01`;
+
+  const startInput = document.getElementById('history-filter-start');
+  const endInput = document.getElementById('history-filter-end');
+  
+  if (startInput) startInput.value = firstDayOfMonth;
+  if (endInput) endInput.value = localDateStr;
+  
+  filterHistoryTable();
+  showToast('Filter riwayat diatur ke Bulan Ini.', 'info');
+}
+
+/**
+ * Menampilkan semua riwayat data leads (tanpa batas tanggal)
+ */
+function showAllHistoryDates() {
+  const startInput = document.getElementById('history-filter-start');
+  const endInput = document.getElementById('history-filter-end');
+  
+  if (startInput) startInput.value = '';
+  if (endInput) endInput.value = '';
+  
+  filterHistoryTable();
+  showToast('Menampilkan seluruh data riwayat leads.', 'info');
 }
 
 /**
@@ -1227,11 +1303,11 @@ function filterHistoryTable() {
     let matchDate = true;
     const leadDateStr = getLeadDateOnly(lead['Tanggal Leads']);
     
-    if (startDateStr && leadDateStr && leadDateStr < startDateStr) {
-      matchDate = false;
+    if (startDateStr) {
+      if (!leadDateStr || leadDateStr < startDateStr) matchDate = false;
     }
-    if (endDateStr && leadDateStr && leadDateStr > endDateStr) {
-      matchDate = false;
+    if (endDateStr) {
+      if (!leadDateStr || leadDateStr > endDateStr) matchDate = false;
     }
     
     // Filter by search text
@@ -1427,7 +1503,33 @@ function applyDashboardFilters() {
 function resetDashboardFilters() {
   setDefaultDashboardDates();
   renderDashboard();
-  showToast('Filter direset ke hari ini.', 'info');
+  showToast('Filter dashboard direset ke Hari Ini.', 'info');
+}
+
+/**
+ * Filter dashboard ke bulan berjalan (Bulan Ini)
+ */
+function showMonthDashboardDates() {
+  const today = new Date();
+  const tzOffset = today.getTimezoneOffset() * 60000;
+  const localToday = new Date(today - tzOffset);
+  const localDateStr = localToday.toISOString().split('T')[0];
+  const firstDayOfMonth = `${localDateStr.substring(0, 7)}-01`;
+
+  document.getElementById('filter-start-date').value = firstDayOfMonth;
+  document.getElementById('filter-end-date').value = localDateStr;
+  renderDashboard();
+  showToast('Dashboard diatur ke Bulan Ini.', 'info');
+}
+
+/**
+ * Menampilkan seluruh data tanggal pada dashboard (tanpa batas)
+ */
+function showAllDashboardDates() {
+  document.getElementById('filter-start-date').value = '';
+  document.getElementById('filter-end-date').value = '';
+  renderDashboard();
+  showToast('Menampilkan seluruh data analitik leads.', 'info');
 }
 
 /**
@@ -1575,13 +1677,12 @@ function renderDashboard() {
   const startDateStr = document.getElementById('filter-start-date')?.value || '';
   const endDateStr = document.getElementById('filter-end-date')?.value || '';
 
-  if (!startDateStr || !endDateStr) return;
-
   // Filter leads yang berada di dalam range tanggal terpilih secara aman dan konsisten
   const filteredLeads = currentLeads.filter(lead => {
     const leadDateStr = getLeadDateOnly(lead['Tanggal Leads']);
-    if (!leadDateStr) return false;
-    return leadDateStr >= startDateStr && leadDateStr <= endDateStr;
+    if (startDateStr && (!leadDateStr || leadDateStr < startDateStr)) return false;
+    if (endDateStr && (!leadDateStr || leadDateStr > endDateStr)) return false;
+    return true;
   });
 
   // 1. Hitung total transaksi dan qty keseluruhan (hanya leads sales / rekap, tanpa Block Lose & MQL)

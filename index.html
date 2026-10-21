@@ -76,6 +76,8 @@
         </div>
         <button class="btn-filter" onclick="applyDashboardFilters()">Terapkan Filter</button>
         <button class="btn-secondary" onclick="resetDashboardFilters()" style="padding: 0.6rem 1.2rem;">Hari Ini</button>
+        <button class="btn-secondary" onclick="showMonthDashboardDates()" style="padding: 0.6rem 1.2rem;">Bulan Ini</button>
+        <button class="btn-secondary" onclick="showAllDashboardDates()" style="padding: 0.6rem 1.2rem;">Semua Tanggal</button>
       </div>
 
       <!-- Ringkasan Kartu Per Sales -->
@@ -299,6 +301,8 @@
             <span style="color: var(--text-muted); font-size: 0.85rem;">s/d</span>
             <input type="date" id="history-filter-end" class="filter-input" onchange="filterHistoryTable()" title="Tanggal Akhir">
             <button class="btn-secondary" onclick="resetHistoryDateFilter()" style="padding: 0.5rem 1rem; font-size: 0.85rem;">Hari Ini</button>
+            <button class="btn-secondary" onclick="showMonthHistoryDates()" style="padding: 0.5rem 1rem; font-size: 0.85rem;">Bulan Ini</button>
+            <button class="btn-secondary" onclick="showAllHistoryDates()" style="padding: 0.5rem 1rem; font-size: 0.85rem;">Semua Data</button>
             <input type="text" id="search-history" class="table-search-input" placeholder="Cari Sales, ID, atau Sumber..." oninput="filterHistoryTable()" style="width: 200px; margin: 0;">
           </div>
         </div>

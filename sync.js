@@ -3,6 +3,9 @@
  * Mengelola deteksi koneksi, antrean sinkronisasi (sync queue), dan komunikasi dengan Google Apps Script Web App.
  */
 
+const DEFAULT_SOVIA_GAS_URL = 'https://script.google.com/macros/s/AKfycbzZYlAh4oe5ZwRJAFNRZ-e31m_opHnxzBM8qDjAvHSj5XZkq-l8nJm5LjFhKLVFDqlkjw/exec';
+window.SOVIA_DEFAULT_GAS_URL = DEFAULT_SOVIA_GAS_URL;
+
 class SoviaSync {
   constructor() {
     this.isOnline = navigator.onLine;
@@ -10,16 +13,29 @@ class SoviaSync {
     this.listeners = [];
     this.syncIntervalId = null;
     
-    // Inisialisasi event listener koneksi
+    // Inisialisasi event listener koneksi online/offline
     window.addEventListener('online', () => this.handleNetworkChange(true));
     window.addEventListener('offline', () => this.handleNetworkChange(false));
     
-    // Loop sinkronisasi background setiap 5 menit (300.000 ms)
+    // Sinkronisasi otomatis saat user kembali membuka tab / aplikasi di perangkat apa pun
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && this.isOnline && !this.isSyncing) {
+        this.syncNow();
+      }
+    });
+
+    window.addEventListener('focus', () => {
+      if (this.isOnline && !this.isSyncing) {
+        this.syncNow();
+      }
+    });
+
+    // Loop sinkronisasi background setiap 60 detik (1 menit) agar multi-device selalu konsisten
     this.syncIntervalId = setInterval(() => {
       if (this.isOnline && !this.isSyncing) {
         this.syncNow();
       }
-    }, 300000);
+    }, 60000);
   }
 
   /**
@@ -82,24 +98,25 @@ class SoviaSync {
   }
 
   /**
-   * Mendapatkan Web App URL dari LocalStorage
+   * Mendapatkan Web App URL dari LocalStorage atau default URL terpasang
    */
   getWebAppUrl() {
-    return localStorage.getItem('sovia_gas_url') || '';
+    return localStorage.getItem('sovia_gas_url') || DEFAULT_SOVIA_GAS_URL;
   }
 
   /**
    * Menyimpan Web App URL ke LocalStorage
    */
   setWebAppUrl(url) {
-    localStorage.setItem('sovia_gas_url', url);
+    localStorage.setItem('sovia_gas_url', url || DEFAULT_SOVIA_GAS_URL);
     this.notifyListeners();
   }
 
   /**
    * Helper: Fetch dengan timeout menggunakan AbortController
+   * Timeout default 60 detik untuk memberikan ruang kerja cukup bagi Google Apps Script.
    */
-  _fetchWithTimeout(url, options = {}, timeoutMs = 30000) {
+  _fetchWithTimeout(url, options = {}, timeoutMs = 60000) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     
@@ -116,7 +133,7 @@ class SoviaSync {
       .catch(error => {
         clearTimeout(timeoutId);
         if (error.name === 'AbortError') {
-          throw new Error('Request timeout: Server tidak merespon dalam 30 detik.');
+          throw new Error(`Request timeout: Server tidak merespon dalam ${Math.round(timeoutMs / 1000)} detik.`);
         }
         throw error;
       });
@@ -153,13 +170,13 @@ class SoviaSync {
     }
 
     if (queue.length === 0) {
-      // Jika tidak ada antrean, lakukan pull data terbaru dari server
+      // Jika tidak ada antrean lokal yang perlu dikirim, tarik data terbaru dari server
       return this.pullDataFromServer();
     }
 
     this.isSyncing = true;
     this.notifyListeners();
-    console.log(`Memulai sinkronisasi ${queue.length} item antrean...`);
+    console.log(`Memulai sinkronisasi ${queue.length} item antrean ke server...`);
 
     try {
       const response = await this._fetchWithTimeout(url, {
@@ -172,7 +189,7 @@ class SoviaSync {
           action: 'sync',
           queue: queue
         })
-      }, 30000);
+      }, 60000);
 
       if (!response.ok) {
         throw new Error(`Server returned HTTP ${response.status}`);
@@ -188,20 +205,26 @@ class SoviaSync {
       if (result && result.status === 'success') {
         console.log(`Sync berhasil. Server memproses ${result.processedCount || 0} operasi.`);
         
-        // Hapus item yang berhasil diproses dari antrean lokal
+        // Tentukan ID item yang berhasil diproses
+        let processedIds = [];
         if (result.processedQueueIds && Array.isArray(result.processedQueueIds) && result.processedQueueIds.length > 0) {
-          await window.soviaDb.removeItemsFromQueue(result.processedQueueIds);
+          processedIds = result.processedQueueIds;
         } else {
           const processedCount = result.processedCount || 0;
           if (processedCount > 0) {
-            const processedIds = queue.slice(0, processedCount).map(item => item.queueId);
-            await window.soviaDb.removeItemsFromQueue(processedIds);
+            processedIds = queue.slice(0, processedCount).map(item => item.queueId);
           }
         }
-        
+
         // Gabungkan data terbaru dari server ke database lokal
+        // Catatan: Lakukan merge terlebih dahulu agar item antrean yang baru saja disinkronkan tidak terhapus dari memori
         if (result.data) {
-          await this.mergeServerData(result.data);
+          await this.mergeServerData(result.data, processedIds);
+        }
+
+        // Hapus item yang berhasil diproses dari antrean lokal
+        if (processedIds.length > 0) {
+          await window.soviaDb.removeItemsFromQueue(processedIds);
         }
 
         // Log error parsial jika ada
@@ -226,7 +249,9 @@ class SoviaSync {
   }
 
   /**
-   * Menarik (pull) data terbaru dari server ketika online tanpa memproses antrean
+   * Menarik (pull) data terbaru dari server ketika online tanpa memproses antrean.
+   * Menggunakan POST dengan action 'sync' (queue kosong) yang terbukti cepat dan stabil di GAS,
+   * dengan fallback ke GET jika endpoint lama.
    */
   async pullDataFromServer() {
     const url = this.getWebAppUrl();
@@ -237,13 +262,33 @@ class SoviaSync {
     console.log('Menarik data terbaru dari Google Sheets...');
 
     try {
-      const response = await this._fetchWithTimeout(url, {
-        method: 'GET',
-        mode: 'cors'
-      }, 30000);
+      let response;
+      let usedPost = true;
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+      try {
+        // Coba POST { action: 'sync', queue: [] } terlebih dahulu
+        response = await this._fetchWithTimeout(url, {
+          method: 'POST',
+          mode: 'cors',
+          headers: {
+            'Content-Type': 'text/plain;charset=UTF-8'
+          },
+          body: JSON.stringify({
+            action: 'sync',
+            queue: []
+          })
+        }, 60000);
+      } catch (postErr) {
+        console.warn('POST pull gagal atau timeout, mencoba GET fallback...', postErr);
+        usedPost = false;
+        response = await this._fetchWithTimeout(url, {
+          method: 'GET',
+          mode: 'cors'
+        }, 60000);
+      }
+
+      if (!response || !response.ok) {
+        throw new Error(`HTTP ${response ? response.status : 'No Response'}`);
       }
 
       let result;
@@ -273,9 +318,11 @@ class SoviaSync {
 
   /**
    * Menggabungkan data server ke database lokal (IndexedDB)
-   * Memastikan data lokal yang masih ada di antrean tidak tertimpa oleh data server yang lebih lama.
+   * Menyelesaikan masalah perbedaan data antar perangkat dan mencegah data terhapus.
    */
-  async mergeServerData(serverData) {
+  async mergeServerData(serverData, justProcessedQueueIds = []) {
+    if (!serverData) return;
+
     const queue = await window.soviaDb.getQueue();
     
     // Ambil daftar ID Leads yang masih memiliki antrean edit/delete lokal
@@ -298,39 +345,55 @@ class SoviaSync {
     const localLeadsMap = new Map(currentLocalLeads.map(l => [String(l['ID Leads'] || '').trim(), l]));
     
     const leadsToSave = [];
-    
-    // Build Set of server lead IDs untuk O(1) lookup
     const serverLeadIds = new Set();
-    if (serverData.leads) {
+    
+    if (serverData.leads && Array.isArray(serverData.leads)) {
       serverData.leads.forEach(serverLead => {
         const leadId = String(serverLead['ID Leads'] || '').trim();
         if (!leadId) return;
         serverLeadIds.add(leadId);
         
-        // Jika lead sedang diantrekan untuk dihapus lokal, abaikan versi server
+        // Jika lead sedang diantrekan untuk dihapus lokal, jangan masukkan ke lokal
         if (deletedPendingIds.has(leadId)) {
           return;
         }
 
-        // Jika lead tidak memiliki antrean perubahan lokal, ikuti server
-        if (!pendingLeadIds.has(leadId)) {
-          leadsToSave.push(serverLead);
-        } else {
-          // Jika ada antrean lokal, pertahankan versi lokal
+        // Jika lead memiliki antrean edit lokal yang belum terkirim, pertahankan versi lokal
+        if (pendingLeadIds.has(leadId)) {
           const localVersion = localLeadsMap.get(leadId);
           if (localVersion) {
             leadsToSave.push(localVersion);
+            return;
           }
         }
+
+        // Normalisasi properti kontak pada data dari server
+        const rawContact = serverLead['Kontak / No HP'] || serverLead['Kontak'] || '';
+        if (!serverLead['Kontak List'] || !Array.isArray(serverLead['Kontak List'])) {
+          serverLead['Kontak List'] = (rawContact && rawContact !== '-')
+            ? String(rawContact).split(',').map(s => s.trim()).filter(Boolean)
+            : [];
+        }
+
+        leadsToSave.push(serverLead);
       });
     }
 
-    // Pertahankan juga leads lokal yang baru dibuat offline dan belum ada di server
+    // Pertahankan leads lokal yang baru dibuat dan belum ada di server (Offline-First)
     currentLocalLeads.forEach(localLead => {
       const leadId = String(localLead['ID Leads'] || '').trim();
       if (!leadId || deletedPendingIds.has(leadId)) return;
-      if (!serverLeadIds.has(leadId) && pendingLeadIds.has(leadId)) {
+      
+      // Jika belum ada di data server, pertahankan data lokal tersebut
+      if (!serverLeadIds.has(leadId)) {
         leadsToSave.push(localLead);
+        
+        // Jika belum ada di antrean sync, masukkan kembali ke antrean agar disinkronkan ke server
+        if (!pendingLeadIds.has(leadId)) {
+          window.soviaDb.addToQueue('create_lead', leadId, null, localLead).catch(e => {
+            console.warn('Gagal menjadwalkan ulang antrean lead:', e);
+          });
+        }
       }
     });
 
@@ -350,7 +413,7 @@ class SoviaSync {
       };
 
       for (const [type, values] of Object.entries(validationMergeMap)) {
-        if (!pendingValidationTypes.has(type) && values) {
+        if (!pendingValidationTypes.has(type) && values && Array.isArray(values) && values.length > 0) {
           await window.soviaDb.saveValidationOptions(type, values);
         }
       }
