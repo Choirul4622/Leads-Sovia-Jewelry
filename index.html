@@ -85,14 +85,47 @@
         <!-- Kartu metrik per sales akan digenerate secara dinamis di sini -->
       </div>
 
-      <!-- Analitik Per Sumber Leads Global -->
+      <!-- Analitik Per Sumber Leads -->
       <div class="section-panel" style="margin-bottom: 2rem;">
         <h2 class="section-title">
-          Analitik Per Sumber Leads Global
+          Analitik Per Sumber Leads
           <span id="source-analytics-qty" class="badge synced" style="font-size: 0.85rem; font-family: var(--font-body); padding: 0.35rem 0.75rem;">Total: 0 Leads</span>
         </h2>
-        <div id="source-analytics-container" class="card-grid">
+        
+        <!-- Kartu Ringkasan Per Sumber Leads -->
+        <div id="source-analytics-container" class="card-grid" style="margin-bottom: 1.5rem;">
           <!-- Diisi otomatis melalui JS -->
+        </div>
+
+        <!-- Tabel Detail Analitik Per Sumber Leads (On-Demand saat kartu diklik) -->
+        <div class="source-table-card" id="source-analytics-table-card" style="display: none;">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border-color);">
+            <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
+              <span id="source-table-title" style="font-family: var(--font-title); font-size: 1.05rem; font-weight: 600; color: var(--gold-primary);">Detail Analitik Sumber Leads</span>
+              <span style="font-size: 0.8rem; color: var(--text-muted);">Distribusi sales, channel, dan kontak followup WhatsApp</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.6rem;">
+              <span class="badge synced" id="source-table-badge" style="font-size: 0.85rem; font-family: var(--font-body); padding: 0.35rem 0.75rem;">0 Leads</span>
+              <button type="button" class="btn btn-secondary" onclick="selectSourceDashboard(null)" style="padding: 0.25rem 0.65rem; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 0.3rem;" title="Tutup tabel detail sumber leads">✕ Tutup</button>
+            </div>
+          </div>
+          <div style="overflow-x: auto;">
+            <table class="history-table" style="font-size: 0.85rem;">
+              <thead>
+                <tr>
+                  <th>Sumber Leads</th>
+                  <th>Nama Sales</th>
+                  <th>Sumber Channel</th>
+                  <th>Jenis Pesan</th>
+                  <th>Kontak / No HP (Followup WA)</th>
+                  <th>Total Leads</th>
+                </tr>
+              </thead>
+              <tbody id="source-analytics-tbody">
+                <!-- Diisi otomatis melalui JS -->
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
@@ -124,8 +157,40 @@
           Analitik Per Sumber Channel
           <span id="channel-analytics-qty" class="badge synced" style="font-size: 0.85rem; font-family: var(--font-body); padding: 0.35rem 0.75rem;">Total: 0 Leads</span>
         </h2>
-        <div id="channel-analytics-container">
+        
+        <!-- Kartu Ringkasan Per Sumber Channel -->
+        <div id="channel-analytics-container" class="card-grid" style="margin-bottom: 1.5rem;">
           <!-- Diisi otomatis melalui JS -->
+        </div>
+
+        <!-- Tabel Detail Analitik Per Sumber Channel (On-Demand saat kartu diklik) -->
+        <div class="channel-table-card" id="channel-analytics-table-card" style="display: none;">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border-color);">
+            <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
+              <span id="channel-table-title" style="font-family: var(--font-title); font-size: 1.05rem; font-weight: 600; color: var(--gold-primary);">Detail Analitik Sumber Channel</span>
+              <span style="font-size: 0.8rem; color: var(--text-muted);">Distribusi sales, sumber leads, jenis pesan, dan kontak followup WhatsApp</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.6rem;">
+              <span class="badge synced" id="channel-table-badge" style="font-size: 0.85rem; font-family: var(--font-body); padding: 0.35rem 0.75rem;">0 Leads</span>
+              <button type="button" class="btn btn-secondary" onclick="selectChannelDashboard(null)" style="padding: 0.25rem 0.65rem; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 0.3rem;" title="Tutup tabel detail sumber channel">✕ Tutup</button>
+            </div>
+          </div>
+          <div style="overflow-x: auto;">
+            <table class="history-table" style="font-size: 0.85rem;">
+              <thead>
+                <tr>
+                  <th>Nama Sales</th>
+                  <th>Sumber Leads</th>
+                  <th>Jenis Pesan</th>
+                  <th>Kontak / Nomor HP</th>
+                  <th>Total Leads</th>
+                </tr>
+              </thead>
+              <tbody id="channel-analytics-tbody">
+                <!-- Diisi otomatis melalui JS -->
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 

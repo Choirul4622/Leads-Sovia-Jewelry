@@ -1123,11 +1123,80 @@ main {
   opacity: 1;
 }
 
-/* Channel Analytics Card */
-.channel-analytics-card {
+/* Channel & Source Analytics Table Cards */
+.channel-analytics-card, .source-table-card, .channel-table-card {
   background-color: var(--bg-panel);
   border: 1px solid var(--border-color);
   border-radius: 10px;
   padding: 1.25rem;
   margin-bottom: 1rem;
+}
+
+/* Followup WhatsApp Button & Contact Row Styling */
+.contacts-followup-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 170px;
+}
+
+.contact-followup-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  background-color: rgba(21, 29, 48, 0.7);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 0.22rem 0.45rem;
+  transition: var(--transition-fast);
+}
+
+.contact-followup-item:hover {
+  border-color: rgba(37, 211, 102, 0.45);
+  background-color: rgba(37, 211, 102, 0.05);
+}
+
+.contact-followup-item .contact-number {
+  font-family: monospace;
+  font-size: 0.8rem;
+  color: var(--gold-hover);
+  letter-spacing: 0.2px;
+}
+
+.btn-wa-proper,
+.btn-whatsapp {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  height: 24px;
+  padding: 0 0.55rem;
+  background: rgba(37, 211, 102, 0.12);
+  color: #25D366;
+  border: 1px solid rgba(37, 211, 102, 0.4);
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.btn-wa-proper:hover,
+.btn-whatsapp:hover {
+  background: #25D366;
+  color: #FFFFFF;
+  border-color: #25D366;
+  box-shadow: 0 2px 8px rgba(37, 211, 102, 0.4);
+  transform: translateY(-1px);
+}
+
+.btn-wa-proper svg,
+.btn-whatsapp svg {
+  width: 12px;
+  height: 12px;
+  fill: currentColor;
+  flex-shrink: 0;
 }

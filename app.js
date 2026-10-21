@@ -8,6 +8,8 @@ let currentLeads = [];
 let validationOptions = { sales: [], channels: [], sources: [], messages: [], blocks: [], mql: [] };
 let syncStatusGlobal = { isOnline: false, isSyncing: false, pendingCount: 0 };
 let selectedSalesDashboard = 'Semua Sales';
+let selectedSourceDashboard = null;
+let selectedChannelDashboard = null;
 
 // State Pagination Riwayat
 let historyCurrentPage = 1;
@@ -1153,20 +1155,15 @@ async function renderHistoryTable() {
           Synced
          </span>`;
 
-    // Format kontak / nomor HP
+    // Format kontak / nomor HP murni tanpa tombol WhatsApp
     const rawContact = lead['Kontak / No HP'] || lead['Kontak'] || '-';
     let contactCell = '<span style="color: var(--text-muted);">-</span>';
     if (rawContact && rawContact !== '-') {
       const parts = String(rawContact).split(',').map(s => s.trim()).filter(Boolean);
-      if (parts.length === 1) {
-        contactCell = `<span style="font-family: monospace; font-size: 0.82rem; color: var(--gold-hover);">${escapeHtml(parts[0])}</span>`;
-      } else if (parts.length > 1) {
-        contactCell = `
-          <div style="display: flex; flex-direction: column; gap: 0.15rem;">
-            <span style="font-family: monospace; font-size: 0.82rem; color: var(--gold-hover);">${escapeHtml(parts[0])}</span>
-            <span class="badge synced" style="font-size: 0.68rem; padding: 0.15rem 0.45rem; cursor: help; align-self: flex-start;" title="${escapeHtml(rawContact)}">+${parts.length - 1} nomor</span>
-          </div>
-        `;
+      if (parts.length > 1) {
+        contactCell = `<span class="contact-number">${escapeHtml(parts[0])}</span> <span class="badge synced" style="font-size: 0.7rem; padding: 0.1rem 0.35rem;" title="${escapeHtml(parts.join(', '))}">+${parts.length - 1}</span>`;
+      } else if (parts.length === 1) {
+        contactCell = `<span class="contact-number">${escapeHtml(parts[0])}</span>`;
       }
     }
 
@@ -1542,6 +1539,120 @@ function selectSalesDashboard(salesName) {
 }
 
 /**
+ * Mengubah filter Sumber Leads terpilih di dashboard dan merender ulang on-demand table
+ */
+function selectSourceDashboard(sourceName) {
+  if (!sourceName || selectedSourceDashboard === sourceName) {
+    selectedSourceDashboard = null;
+  } else {
+    selectedSourceDashboard = sourceName;
+  }
+  renderDashboard();
+  if (selectedSourceDashboard) {
+    showToast(`Menampilkan detail leads untuk sumber: ${selectedSourceDashboard}`, 'info');
+    setTimeout(() => {
+      const el = document.getElementById('source-analytics-table-card');
+      if (el && el.style.display !== 'none') {
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }, 100);
+  }
+}
+
+/**
+ * Mengubah filter Sumber Channel terpilih di dashboard dan merender ulang on-demand table
+ */
+function selectChannelDashboard(channelName) {
+  if (!channelName || selectedChannelDashboard === channelName) {
+    selectedChannelDashboard = null;
+  } else {
+    selectedChannelDashboard = channelName;
+  }
+  renderDashboard();
+  if (selectedChannelDashboard) {
+    showToast(`Menampilkan detail leads untuk channel: ${selectedChannelDashboard}`, 'info');
+    setTimeout(() => {
+      const el = document.getElementById('channel-analytics-table-card');
+      if (el && el.style.display !== 'none') {
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }, 100);
+  }
+}
+
+/**
+ * Helper: Membuat URL langsung WhatsApp (whatsapp://) tanpa template pesan agar langsung membuka chat tanpa tab baru
+ */
+function createWhatsAppFollowupUrl(phoneStr) {
+  if (!phoneStr) return '';
+  let digits = String(phoneStr).replace(/\D/g, '');
+  if (!digits) return '';
+
+  if (digits.startsWith('0')) {
+    digits = '62' + digits.substring(1);
+  } else if (digits.startsWith('8')) {
+    digits = '62' + digits;
+  } else if (!digits.startsWith('62') && digits.length >= 9) {
+    digits = '62' + digits;
+  }
+
+  return `whatsapp://send?phone=${digits}`;
+}
+
+/**
+ * Helper: Merender daftar nomor kontak dengan tombol Followup WhatsApp yang rapi (proper button) langsung membuka obrolan
+ */
+function renderContactListWithWhatsApp(contactsList, salesName = '', sourceName = '') {
+  if (!contactsList || contactsList.length === 0) {
+    return '<span style="color: var(--text-muted);">-</span>';
+  }
+
+  const itemsHtml = contactsList.map(contact => {
+    const cleanContact = String(contact).trim();
+    if (!cleanContact || cleanContact === '-') {
+      return '';
+    }
+
+    const waUrl = createWhatsAppFollowupUrl(cleanContact);
+    const hasDigits = Boolean(cleanContact.replace(/\D/g, ''));
+
+    if (hasDigits && waUrl) {
+      return `
+        <div class="contact-followup-item">
+          <span class="contact-number">${escapeHtml(cleanContact)}</span>
+          <a href="${waUrl}" class="btn-wa-proper" title="Buka obrolan WhatsApp (${escapeHtml(cleanContact)})">
+            <svg viewBox="0 0 24 24"><path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0 0 12.04 2m.01 1.67c4.56 0 8.25 3.69 8.25 8.24 0 2.2-.86 4.28-2.42 5.84l-.01.01c-1.55 1.55-3.62 2.4-5.83 2.4-1.47 0-2.9-.39-4.16-1.13l-.3-.18-3.11.82.83-3.03-.2-.31c-.81-1.3-1.24-2.81-1.24-4.36 0-4.55 3.69-8.24 8.25-8.24m4.54 11.66c-.25.7-.72 1.32-1.39 1.66-.54.28-1.23.42-1.99.31-.69-.1-1.44-.39-2.22-.85-1.37-.8-2.6-1.96-3.48-3.32-.47-.73-.83-1.52-1.02-2.32-.19-.79-.08-1.56.24-2.14.34-.63.95-1.03 1.61-1.03.18 0 .36.04.53.13.38.19.82 1.24.96 1.54.14.3.15.53.03.77-.12.24-.26.43-.44.64l-.27.31c-.13.15-.22.28-.1.49.25.43.6 1 1.05 1.57.57.73 1.26 1.32 1.95 1.67.22.11.38.1.51-.05.15-.17.34-.44.52-.69.17-.23.36-.31.57-.23.21.08 1.32.62 1.55.73.23.11.38.17.44.27.06.1.06.58-.19 1.28z"/></svg>
+            <span>Chat WA</span>
+          </a>
+        </div>
+      `;
+    } else {
+      return `<div class="contact-followup-item"><span class="contact-number">${escapeHtml(cleanContact)}</span></div>`;
+    }
+  }).filter(Boolean);
+
+  if (itemsHtml.length === 0) {
+    return '<span style="color: var(--text-muted);">-</span>';
+  }
+
+  if (itemsHtml.length <= 3) {
+    return `<div class="contacts-followup-container">${itemsHtml.join('')}</div>`;
+  }
+
+  return `
+    <div class="contacts-followup-container">
+      ${itemsHtml.slice(0, 2).join('')}
+      <details class="contacts-details-dropdown" style="cursor: pointer; margin-top: 0.25rem;">
+        <summary style="font-size: 0.75rem; color: var(--gold-primary); outline: none;">+${itemsHtml.length - 2} nomor lainnya</summary>
+        <div style="display: flex; flex-direction: column; gap: 0.35rem; margin-top: 0.4rem;">
+          ${itemsHtml.slice(2).join('')}
+        </div>
+      </details>
+    </div>
+  `;
+}
+
+/**
  * Helper: Merender baris detail leads sales per channel (Sales -> Sumber Leads -> Jenis Pesan -> Total Leads)
  * Mengembalikan string HTML baris tabel dengan rowspan bertingkat.
  */
@@ -1641,27 +1752,8 @@ function renderChannelDetailRows(channelLeads) {
     }
     html += `<td style="border-right: 1px solid var(--border-color);">${escapeHtml(row.msg)}</td>`;
     
-    // Format Kontak / Nomor HP
-    let contactCell = '<span style="color: var(--text-muted);">-</span>';
-    if (row.contacts && row.contacts.length > 0) {
-      if (row.contacts.length <= 3) {
-        contactCell = `<div style="display: flex; flex-direction: column; gap: 0.25rem;">` +
-          row.contacts.map(c => `<span style="font-family: monospace; font-size: 0.82rem; color: var(--gold-hover);">${escapeHtml(c)}</span>`).join('') +
-          `</div>`;
-      } else {
-        contactCell = `
-          <div style="display: flex; flex-direction: column; gap: 0.25rem;">
-            <span style="font-family: monospace; font-size: 0.82rem; color: var(--gold-hover);">${escapeHtml(row.contacts.slice(0, 2).join(', '))}</span>
-            <details style="cursor: pointer;">
-              <summary style="font-size: 0.75rem; color: var(--gold-primary); outline: none;">+${row.contacts.length - 2} nomor lainnya</summary>
-              <div style="display: flex; flex-direction: column; gap: 0.2rem; margin-top: 0.3rem;">
-                ${row.contacts.slice(2).map(c => `<span style="font-family: monospace; font-size: 0.8rem; color: var(--text-muted);">${escapeHtml(c)}</span>`).join('')}
-              </div>
-            </details>
-          </div>
-        `;
-      }
-    }
+    // Format Kontak / Nomor HP dengan tombol Followup WhatsApp
+    const contactCell = renderContactListWithWhatsApp(row.contacts, row.sales, row.source);
     html += `<td style="border-right: 1px solid var(--border-color);">${contactCell}</td>`;
     html += `<td><span style="color: var(--gold-primary); font-weight: 600;">${row.qty} Leads</span></td>`;
     html += '</tr>';
@@ -1781,39 +1873,78 @@ function renderDashboard() {
         const channelLeads = channelGroups[channel];
         const channelQty = channelLeads.reduce((acc, curr) => acc + (parseInt(curr['Qty'], 10) || 0), 0);
         const channelCount = channelLeads.length;
+        const isSelected = selectedChannelDashboard === channel;
 
         // Hitung unique sales pada channel ini
         const salesOnChannel = new Set(channelLeads.map(l => l['Nama Sales'] || 'Tidak Diketahui'));
 
+        // Hitung breakdown sumber leads pada channel ini
+        const srcGroups = {};
+        channelLeads.forEach(lead => {
+          const src = lead['Sumber Leads'] || 'Tidak Diketahui';
+          const qty = parseInt(lead['Qty'], 10) || 0;
+          srcGroups[src] = (srcGroups[src] || 0) + qty;
+        });
+
+        let srcHtml = '';
+        if (Object.keys(srcGroups).length > 0) {
+          srcHtml = `<hr style="margin: 0.75rem 0 0.5rem 0; border: 0; border-top: 1px dashed var(--border-color);"><div style="font-size: 0.75rem; color: var(--text-muted); display: flex; flex-direction: column; gap: 0.2rem; max-height: 90px; overflow-y: auto; padding-right: 0.25rem;">`;
+          Object.keys(srcGroups).sort().forEach(src => {
+            srcHtml += `<span>${escapeHtml(src)}: <strong style="color: var(--gold-primary);">${srcGroups[src]} Leads</strong></span>`;
+          });
+          srcHtml += `</div>`;
+        }
+
+        const safeChannel = escapeHtml(channel).replace(/'/g, "\\'");
         const cardHtml = `
-          <div class="channel-analytics-card">
-            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border-color);">
-              <div>
-                <span style="font-family: var(--font-title); font-size: 1.05rem; font-weight: 600; color: var(--gold-primary);">${escapeHtml(channel)}</span>
-                <span style="font-size: 0.8rem; color: var(--text-muted); margin-left: 0.5rem;">${salesOnChannel.size} Sales &middot; ${channelCount} Recap</span>
-              </div>
-              <span class="badge synced" style="font-size: 0.85rem; font-family: var(--font-body); padding: 0.35rem 0.75rem;">${channelQty} Leads</span>
-            </div>
-            <div style="overflow-x: auto;">
-              <table class="history-table" style="font-size: 0.85rem;">
-                <thead>
-                  <tr>
-                    <th>Nama Sales</th>
-                    <th>Sumber Leads</th>
-                    <th>Jenis Pesan</th>
-                    <th>Kontak / Nomor HP</th>
-                    <th>Total Leads</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${renderChannelDetailRows(channelLeads)}
-                </tbody>
-              </table>
+          <div class="card ${isSelected ? 'active' : ''}" 
+               onclick="selectChannelDashboard('${safeChannel}')"
+               style="cursor: pointer; transition: all 0.25s ease; ${isSelected ? 'border-color: var(--gold-primary); box-shadow: 0 0 14px rgba(212, 175, 55, 0.35);' : ''}"
+               title="${isSelected ? 'Klik untuk menutup detail' : 'Klik untuk melihat detail channel ini'}">
+            <span class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
+              <span>${escapeHtml(channel)}</span>
+              ${isSelected ? '<span class="badge synced" style="font-size: 0.68rem; padding: 0.15rem 0.4rem;">Aktif</span>' : ''}
+            </span>
+            <span class="card-value" style="font-size: 1.85rem;">${channelQty} Leads</span>
+            <span style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">${salesOnChannel.size} Sales &middot; ${channelCount} Recap</span>
+            ${srcHtml}
+            <div style="margin-top: 0.6rem; font-size: 0.75rem; color: var(--gold-primary); font-weight: 500; text-align: right;">
+              ${isSelected ? '✕ Tutup Detail' : '🔍 Lihat Detail →'}
             </div>
           </div>
         `;
         channelContainer.insertAdjacentHTML('beforeend', cardHtml);
       });
+    }
+
+    // Render Tabel Detail Analitik Per Sumber Channel (On-Demand saat kartu diklik)
+    const channelTableCard = document.getElementById('channel-analytics-table-card');
+    const channelTbody = document.getElementById('channel-analytics-tbody');
+    const channelTableBadge = document.getElementById('channel-table-badge');
+    const channelTableTitle = document.getElementById('channel-table-title');
+
+    if (!selectedChannelDashboard) {
+      if (channelTableCard) channelTableCard.style.display = 'none';
+    } else {
+      if (channelTableCard) channelTableCard.style.display = 'block';
+      if (channelTableTitle) channelTableTitle.innerText = `Detail Analitik Channel: ${selectedChannelDashboard}`;
+
+      const activeChannelLeads = channelSourceLeads.filter(
+        l => (l['Sumber Channel'] || 'Tidak Diketahui').trim() === selectedChannelDashboard
+      );
+      const activeChannelQty = activeChannelLeads.reduce((acc, curr) => acc + (parseInt(curr['Qty'], 10) || 0), 0);
+
+      if (channelTableBadge) {
+        channelTableBadge.innerText = `${activeChannelQty} Leads (${activeChannelLeads.length} Recap)`;
+      }
+
+      if (channelTbody) {
+        if (activeChannelLeads.length === 0) {
+          channelTbody.innerHTML = `<tr><td colspan="5" class="no-data-msg">Tidak ada data untuk sumber channel "${escapeHtml(selectedChannelDashboard)}" pada filter ini.</td></tr>`;
+        } else {
+          channelTbody.innerHTML = renderChannelDetailRows(activeChannelLeads);
+        }
+      }
     }
   }
 
@@ -1847,6 +1978,7 @@ function renderDashboard() {
         const sourceLeads = sourceGroups[source];
         const sourceQty = sourceLeads.reduce((acc, curr) => acc + (parseInt(curr['Qty'], 10) || 0), 0);
         const sourceCount = sourceLeads.length;
+        const isSelected = selectedSourceDashboard === source;
 
         const msgGroups = {};
         sourceLeads.forEach(lead => {
@@ -1857,23 +1989,179 @@ function renderDashboard() {
 
         let msgHtml = '';
         if (Object.keys(msgGroups).length > 0) {
-          msgHtml = `<hr style="margin: 0.75rem 0 0.5rem 0; border: 0; border-top: 1px dashed var(--border-color);"><div style="font-size: 0.75rem; color: var(--text-muted); display: flex; flex-direction: column; gap: 0.2rem;">`;
+          msgHtml = `<hr style="margin: 0.75rem 0 0.5rem 0; border: 0; border-top: 1px dashed var(--border-color);"><div style="font-size: 0.75rem; color: var(--text-muted); display: flex; flex-direction: column; gap: 0.2rem; max-height: 90px; overflow-y: auto; padding-right: 0.25rem;">`;
           Object.keys(msgGroups).sort().forEach(msg => {
             msgHtml += `<span>${escapeHtml(msg)}: <strong style="color: var(--gold-primary);">${msgGroups[msg]} Leads</strong></span>`;
           });
           msgHtml += `</div>`;
         }
 
+        const safeSource = escapeHtml(source).replace(/'/g, "\\'");
         const cardHtml = `
-          <div class="card">
-            <span class="card-title">${escapeHtml(source)}</span>
+          <div class="card ${isSelected ? 'active' : ''}" 
+               onclick="selectSourceDashboard('${safeSource}')"
+               style="cursor: pointer; transition: all 0.25s ease; ${isSelected ? 'border-color: var(--gold-primary); box-shadow: 0 0 14px rgba(212, 175, 55, 0.35);' : ''}"
+               title="${isSelected ? 'Klik untuk menutup detail' : 'Klik untuk melihat detail sumber ini'}">
+            <span class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
+              <span>${escapeHtml(source)}</span>
+              ${isSelected ? '<span class="badge synced" style="font-size: 0.68rem; padding: 0.15rem 0.4rem;">Aktif</span>' : ''}
+            </span>
             <span class="card-value" style="font-size: 1.85rem;">${sourceQty} Leads</span>
             <span style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">${sourceCount} Recap</span>
             ${msgHtml}
+            <div style="margin-top: 0.6rem; font-size: 0.75rem; color: var(--gold-primary); font-weight: 500; text-align: right;">
+              ${isSelected ? '✕ Tutup Detail' : '🔍 Lihat Detail →'}
+            </div>
           </div>
         `;
         sourceContainer.insertAdjacentHTML('beforeend', cardHtml);
       });
+    }
+
+    // Render Tabel Detail Analitik Per Sumber Leads (On-Demand saat kartu diklik)
+    const sourceTableCard = document.getElementById('source-analytics-table-card');
+    const sourceTbody = document.getElementById('source-analytics-tbody');
+    const sourceTableBadge = document.getElementById('source-table-badge');
+    const sourceTableTitle = document.getElementById('source-table-title');
+
+    if (!selectedSourceDashboard) {
+      if (sourceTableCard) sourceTableCard.style.display = 'none';
+    } else {
+      if (sourceTableCard) sourceTableCard.style.display = 'block';
+      if (sourceTableTitle) sourceTableTitle.innerText = `Detail Analitik: ${selectedSourceDashboard}`;
+
+      const activeSourceLeads = channelSourceLeads.filter(
+        l => (l['Sumber Leads'] || 'Tidak Diketahui').trim() === selectedSourceDashboard
+      );
+      const activeSourceQty = activeSourceLeads.reduce((acc, curr) => acc + (parseInt(curr['Qty'], 10) || 0), 0);
+
+      if (sourceTableBadge) {
+        sourceTableBadge.innerText = `${activeSourceQty} Leads (${activeSourceLeads.length} Recap)`;
+      }
+
+      if (sourceTbody) {
+        if (activeSourceLeads.length === 0) {
+          sourceTbody.innerHTML = `<tr><td colspan="6" class="no-data-msg">Tidak ada data untuk sumber leads "${escapeHtml(selectedSourceDashboard)}" pada filter ini.</td></tr>`;
+        } else {
+          // Group data: Sumber Leads -> Sales -> Channel -> Jenis Pesan
+          const groupsBySource = {};
+          activeSourceLeads.forEach(lead => {
+            const src = (lead['Sumber Leads'] || 'Tidak Diketahui').trim();
+            const sls = (lead['Nama Sales'] || 'Tidak Diketahui').trim();
+            const chn = (lead['Sumber Channel'] || 'Tidak Diketahui').trim();
+            const msg = (lead['Jenis Pesan'] || 'Tidak Diketahui').trim();
+            const qty = parseInt(lead['Qty'], 10) || 0;
+
+            const rawContact = lead['Kontak / No HP'] || lead['Kontak'] || '';
+            let contactsList = [];
+            if (Array.isArray(lead['Kontak List']) && lead['Kontak List'].length > 0) {
+              contactsList = lead['Kontak List'];
+            } else if (rawContact && rawContact !== '-') {
+              contactsList = String(rawContact).split(',').map(s => s.trim()).filter(Boolean);
+            }
+
+            if (!groupsBySource[src]) groupsBySource[src] = {};
+            if (!groupsBySource[src][sls]) groupsBySource[src][sls] = {};
+            if (!groupsBySource[src][sls][chn]) groupsBySource[src][sls][chn] = {};
+            if (!groupsBySource[src][sls][chn][msg]) {
+              groupsBySource[src][sls][chn][msg] = { qty: 0, contacts: [] };
+            }
+            groupsBySource[src][sls][chn][msg].qty += qty;
+            if (contactsList.length > 0) {
+              contactsList.forEach(c => {
+                if (!groupsBySource[src][sls][chn][msg].contacts.includes(c)) {
+                  groupsBySource[src][sls][chn][msg].contacts.push(c);
+                }
+              });
+            }
+          });
+
+          // Flatten groups to list of rows
+          const tableRows = [];
+          const sortedSrcKeys = Object.keys(groupsBySource).sort();
+          sortedSrcKeys.forEach(src => {
+            const sortedSlsKeys = Object.keys(groupsBySource[src]).sort();
+            sortedSlsKeys.forEach(sls => {
+              const sortedChnKeys = Object.keys(groupsBySource[src][sls]).sort();
+              sortedChnKeys.forEach(chn => {
+                const sortedMsgKeys = Object.keys(groupsBySource[src][sls][chn]).sort();
+                sortedMsgKeys.forEach(msg => {
+                  const item = groupsBySource[src][sls][chn][msg];
+                  tableRows.push({
+                    source: src,
+                    sales: sls,
+                    channel: chn,
+                    msg: msg,
+                    contacts: item.contacts,
+                    qty: item.qty
+                  });
+                });
+              });
+            });
+          });
+
+          // Pre-calculate rowspan counts
+          const srcSpan = [];
+          const slsSpan = [];
+          const chnSpan = [];
+
+          let sIdx = 0;
+          while (sIdx < tableRows.length) {
+            let nextSrcIdx = sIdx;
+            while (nextSrcIdx < tableRows.length && tableRows[nextSrcIdx].source === tableRows[sIdx].source) {
+              nextSrcIdx++;
+            }
+            const srcCount = nextSrcIdx - sIdx;
+            srcSpan[sIdx] = srcCount;
+            for (let k = sIdx + 1; k < nextSrcIdx; k++) srcSpan[k] = 0;
+
+            let slsStart = sIdx;
+            while (slsStart < nextSrcIdx) {
+              let slsEnd = slsStart;
+              while (slsEnd < nextSrcIdx && tableRows[slsEnd].sales === tableRows[slsStart].sales) {
+                slsEnd++;
+              }
+              const slsCount = slsEnd - slsStart;
+              slsSpan[slsStart] = slsCount;
+              for (let k = slsStart + 1; k < slsEnd; k++) slsSpan[k] = 0;
+
+              let chnStart = slsStart;
+              while (chnStart < slsEnd) {
+                let chnEnd = chnStart;
+                while (chnEnd < slsEnd && tableRows[chnEnd].channel === tableRows[chnStart].channel) {
+                  chnEnd++;
+                }
+                const chnCount = chnEnd - chnStart;
+                chnSpan[chnStart] = chnCount;
+                for (let k = chnStart + 1; k < chnEnd; k++) chnSpan[k] = 0;
+                chnStart = chnEnd;
+              }
+              slsStart = slsEnd;
+            }
+            sIdx = nextSrcIdx;
+          }
+
+          let tableHtml = '';
+          tableRows.forEach((row, rIdx) => {
+            tableHtml += '<tr>';
+            if (srcSpan[rIdx] > 0) {
+              tableHtml += `<td rowspan="${srcSpan[rIdx]}" style="vertical-align: top; border-right: 1px solid var(--border-color);"><strong>${escapeHtml(row.source)}</strong></td>`;
+            }
+            if (slsSpan[rIdx] > 0) {
+              tableHtml += `<td rowspan="${slsSpan[rIdx]}" style="vertical-align: top; border-right: 1px solid var(--border-color);">${escapeHtml(row.sales)}</td>`;
+            }
+            if (chnSpan[rIdx] > 0) {
+              tableHtml += `<td rowspan="${chnSpan[rIdx]}" style="vertical-align: top; border-right: 1px solid var(--border-color);">${escapeHtml(row.channel)}</td>`;
+            }
+            tableHtml += `<td style="border-right: 1px solid var(--border-color);">${escapeHtml(row.msg)}</td>`;
+            tableHtml += `<td style="border-right: 1px solid var(--border-color);">${renderContactListWithWhatsApp(row.contacts, row.sales, row.source)}</td>`;
+            tableHtml += `<td><span style="color: var(--gold-primary); font-weight: 600;">${row.qty} Leads</span></td>`;
+            tableHtml += '</tr>';
+          });
+
+          sourceTbody.innerHTML = tableHtml;
+        }
+      }
     }
   }
 
