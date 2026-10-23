@@ -359,34 +359,47 @@
 
       <!-- Tabel Riwayat leads -->
       <div class="section-panel" style="background-color: var(--bg-panel);">
-        <div class="table-header-bar" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
-          <h2 style="font-family: var(--font-title); font-size: 1.1rem; font-weight: 600; margin: 0;">Riwayat Rekapitulasi Leads</h2>
-          <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
-            <input type="date" id="history-filter-start" class="filter-input" onchange="filterHistoryTable()" title="Tanggal Awal">
-            <span style="color: var(--text-muted); font-size: 0.85rem;">s/d</span>
-            <input type="date" id="history-filter-end" class="filter-input" onchange="filterHistoryTable()" title="Tanggal Akhir">
-            <button class="btn-secondary" onclick="resetHistoryDateFilter()" style="padding: 0.5rem 1rem; font-size: 0.85rem;">Hari Ini</button>
-            <button class="btn-secondary" onclick="showMonthHistoryDates()" style="padding: 0.5rem 1rem; font-size: 0.85rem;">Bulan Ini</button>
-            <button class="btn-secondary" onclick="showAllHistoryDates()" style="padding: 0.5rem 1rem; font-size: 0.85rem;">Semua Data</button>
-            <input type="text" id="search-history" class="table-search-input" placeholder="Cari Sales, ID, atau Sumber..." oninput="filterHistoryTable()" style="width: 200px; margin: 0;">
+        <div class="table-header-bar">
+          <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+            <h2 style="font-family: var(--font-title); font-size: 1.15rem; font-weight: 600; margin: 0;">Riwayat Rekapitulasi Leads</h2>
+            <button id="btn-bulk-delete" class="btn-danger" style="display: none;" onclick="bulkDeleteSelectedLeads()" title="Hapus semua leads terpilih">
+              <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+              <span>Hapus Terpilih (<span id="bulk-delete-count">0</span>)</span>
+            </button>
+          </div>
+          <div class="table-filter-controls">
+            <div class="date-range-group">
+              <input type="date" id="history-filter-start" class="filter-input" onchange="filterHistoryTable()" title="Tanggal Awal">
+              <span style="color: var(--text-muted); font-size: 0.85rem;">s/d</span>
+              <input type="date" id="history-filter-end" class="filter-input" onchange="filterHistoryTable()" title="Tanggal Akhir">
+            </div>
+            <div class="quick-filter-buttons">
+              <button class="btn-secondary" onclick="resetHistoryDateFilter()" style="padding: 0.5rem 0.85rem; font-size: 0.85rem;">Hari Ini</button>
+              <button class="btn-secondary" onclick="showMonthHistoryDates()" style="padding: 0.5rem 0.85rem; font-size: 0.85rem;">Bulan Ini</button>
+              <button class="btn-secondary" onclick="showAllHistoryDates()" style="padding: 0.5rem 0.85rem; font-size: 0.85rem;">Semua Data</button>
+            </div>
+            <input type="text" id="search-history" class="table-search-input" placeholder="Cari Sales, ID, atau Sumber..." oninput="filterHistoryTable()">
           </div>
         </div>
-        <div style="overflow-x: auto;">
+        <div class="table-responsive">
           <table class="history-table">
             <thead>
               <tr>
-                <th>ID Leads</th>
-                <th>Tanggal</th>
-                <th>Sales</th>
-                <th>Sumber Channel</th>
-                <th>Sumber Leads</th>
-                <th>Jenis Pesan</th>
-                <th>Block Lose</th>
-                <th>MQL</th>
-                <th>Kontak / No HP</th>
-                <th>Qty</th>
-                <th>Status Sync</th>
-                <th style="width: 100px; text-align: center;">Aksi</th>
+                <th style="width: 44px; min-width: 44px; text-align: center; padding: 0.5rem 0.6rem;">
+                  <input type="checkbox" id="check-all-leads" onchange="toggleSelectAllLeads(this.checked)" title="Pilih Semua di Halaman Ini">
+                </th>
+                <th style="min-width: 175px;">ID Leads</th>
+                <th style="min-width: 135px;">Tanggal</th>
+                <th style="min-width: 120px;">Sales</th>
+                <th style="min-width: 125px;">Sumber Channel</th>
+                <th style="min-width: 125px;">Sumber Leads</th>
+                <th style="min-width: 135px;">Jenis Pesan</th>
+                <th style="min-width: 125px;">Block Lose</th>
+                <th style="min-width: 125px;">MQL</th>
+                <th style="min-width: 130px;">Kontak / No HP</th>
+                <th style="min-width: 55px; text-align: center;">Qty</th>
+                <th style="min-width: 105px; text-align: center;">Status Sync</th>
+                <th class="col-sticky-action" style="min-width: 90px; text-align: center;">Aksi</th>
               </tr>
             </thead>
             <tbody id="history-table-body">
@@ -510,10 +523,10 @@
   <!-- Container Notifikasi Toast -->
   <div id="toast-container" class="toast-container"></div>
 
-  <!-- Memuat library scripts -->
-  <script src="db.js"></script>
-  <script src="sync.js"></script>
-  <script src="app.js"></script>
+  <!-- Memuat library scripts dengan cache busting -->
+  <script src="db.js?v=2.2"></script>
+  <script src="sync.js?v=2.2"></script>
+  <script src="app.js?v=2.2"></script>
 
 </body>
 </html>

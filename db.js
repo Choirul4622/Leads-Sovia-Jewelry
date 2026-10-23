@@ -124,6 +124,35 @@ class SoviaDB {
   }
 
   /**
+   * Menghapus banyak data lead secara lokal dalam satu transaksi IndexedDB atomik
+   */
+  deleteLeadsBulk(leadIds) {
+    this._ensureDb();
+    return new Promise((resolve, reject) => {
+      if (!Array.isArray(leadIds) || leadIds.length === 0) {
+        return resolve();
+      }
+      try {
+        const transaction = this.db.transaction(['leads'], 'readwrite');
+        const store = transaction.objectStore('leads');
+        
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => reject(transaction.error || new Error('Transaction error'));
+        transaction.onabort = () => reject(new Error('Transaction aborted'));
+
+        leadIds.forEach(id => {
+          const safeId = id !== undefined && id !== null ? String(id).trim() : '';
+          if (safeId) {
+            store.delete(safeId);
+          }
+        });
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }
+
+  /**
    * Bulk save data leads dari server (digunakan saat sinkronisasi ulang penuh)
    */
   saveLeadsBulk(leads) {
@@ -246,6 +275,39 @@ class SoviaDB {
         const request = store.add(queueItem);
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }
+
+  /**
+   * Menambahkan banyak aksi ke dalam Sync Queue sekaligus dalam satu transaksi IndexedDB
+   */
+  addBulkToQueue(items) {
+    this._ensureDb();
+    return new Promise((resolve, reject) => {
+      if (!Array.isArray(items) || items.length === 0) {
+        return resolve();
+      }
+      try {
+        const transaction = this.db.transaction(['sync_queue'], 'readwrite');
+        const store = transaction.objectStore('sync_queue');
+        
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => reject(transaction.error || new Error('Transaction error'));
+        transaction.onabort = () => reject(new Error('Transaction aborted'));
+
+        const now = Date.now();
+        items.forEach((item, index) => {
+          store.add({
+            action: item.action,
+            id: item.id !== undefined && item.id !== null ? String(item.id).trim() : null,
+            type: item.type || null,
+            data: item.data || null,
+            timestamp: now + index
+          });
+        });
       } catch (err) {
         reject(err);
       }

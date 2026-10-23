@@ -142,14 +142,14 @@ class SoviaSync {
   /**
    * Fungsi Utama Sinkronisasi (Pencocokan offline dan online)
    */
-  async syncNow() {
+  async syncNow(retryCount = 0) {
     if (!this.isOnline) {
       console.warn('Sinkronisasi ditunda: browser offline.');
       this.notifyListeners();
       return false;
     }
 
-    if (this.isSyncing) {
+    if (this.isSyncing && retryCount === 0) {
       console.log('Sinkronisasi sedang berjalan, mengabaikan request baru.');
       return false;
     }
@@ -176,7 +176,7 @@ class SoviaSync {
 
     this.isSyncing = true;
     this.notifyListeners();
-    console.log(`Memulai sinkronisasi ${queue.length} item antrean ke server...`);
+    console.log(`Memulai sinkronisasi ${queue.length} item antrean ke server... (Percobaan ${retryCount + 1})`);
 
     try {
       const response = await this._fetchWithTimeout(url, {
@@ -237,10 +237,29 @@ class SoviaSync {
         this.triggerDataUpdateEvent();
         return true;
       } else {
-        throw new Error((result && result.message) || 'Gagal sinkronisasi data.');
+        const errorMsg = (result && result.message) || 'Gagal sinkronisasi data.';
+        const isLockOrBusy = /kunci|penguncian|lock|sibuk|timeout/i.test(errorMsg);
+        if (isLockOrBusy && retryCount < 2) {
+          const delay = 2000 + Math.floor(Math.random() * 2000);
+          console.warn(`Server GAS sibuk/lock (${errorMsg}). Mencoba sinkronisasi ulang otomatis dalam ${delay}ms...`);
+          this.isSyncing = false;
+          this.notifyListeners();
+          await new Promise(r => setTimeout(r, delay));
+          return this.syncNow(retryCount + 1);
+        }
+        throw new Error(errorMsg);
       }
 
     } catch (error) {
+      const isLockOrBusy = /kunci|penguncian|lock|sibuk/i.test(error.message || '');
+      if (isLockOrBusy && retryCount < 2) {
+        const delay = 2000 + Math.floor(Math.random() * 2000);
+        console.warn(`Terdeteksi lock timeout pada GAS. Mencoba ulang otomatis dalam ${delay}ms...`);
+        this.isSyncing = false;
+        this.notifyListeners();
+        await new Promise(r => setTimeout(r, delay));
+        return this.syncNow(retryCount + 1);
+      }
       console.error('Error saat sinkronisasi background:', error);
       this.isSyncing = false;
       this.notifyListeners();

@@ -15,6 +15,7 @@ let selectedChannelDashboard = null;
 let historyCurrentPage = 1;
 const historyItemsPerPage = 50;
 let historyFilteredLeads = [];
+let historySelectedLeadIds = new Set();
 
 /**
  * Helper: Sanitasi string untuk mencegah XSS & gangguan syntax HTML
@@ -145,6 +146,16 @@ async function loadLocalDataAndRefreshUI() {
       if (timeB !== timeA) return timeB - timeA;
       return String(b['ID Leads'] || '').localeCompare(String(a['ID Leads'] || ''));
     });
+
+    // Bersihkan ID yang sudah tidak ada di database dari daftar seleksi massal
+    if (historySelectedLeadIds.size > 0) {
+      const activeIds = new Set(currentLeads.map(l => String(l['ID Leads'] || '').trim()));
+      for (const selId of historySelectedLeadIds) {
+        if (!activeIds.has(selId)) {
+          historySelectedLeadIds.delete(selId);
+        }
+      }
+    }
 
     // Rerender seluruh komponen UI
     renderDropdownSelectors();
@@ -1088,6 +1099,10 @@ async function deleteLead(leadId) {
     // 2. Tambahkan aksi delete_lead ke antrean sinkronisasi
     await window.soviaDb.addToQueue('delete_lead', leadId, null, null);
 
+    // Bersihkan dari seleksi massal jika ada
+    historySelectedLeadIds.delete(leadId);
+    updateBulkDeleteUI();
+
     showToast(`Lead ${leadId} berhasil dihapus secara lokal.`, 'success');
 
     // 3. Refresh UI & Sinkronisasi
@@ -1101,6 +1116,140 @@ async function deleteLead(leadId) {
   } catch (error) {
     console.error(`Gagal menghapus lead ${leadId}:`, error);
     showToast(`Gagal menghapus lead: ${error.message || error}`, 'error');
+  }
+}
+
+/**
+ * Mengatur pilihan "Select All" pada halaman riwayat yang sedang aktif
+ */
+function toggleSelectAllLeads(isChecked) {
+  const startIndex = (historyCurrentPage - 1) * historyItemsPerPage;
+  const endIndex = startIndex + historyItemsPerPage;
+  const displayLeads = historyFilteredLeads.slice(startIndex, endIndex);
+
+  displayLeads.forEach(lead => {
+    const id = String(lead['ID Leads'] || '').trim();
+    if (!id) return;
+    if (isChecked) {
+      historySelectedLeadIds.add(id);
+    } else {
+      historySelectedLeadIds.delete(id);
+    }
+  });
+
+  // Perbarui status checked pada checkbox baris di DOM secara langsung
+  const checkboxes = document.querySelectorAll('.lead-row-check');
+  checkboxes.forEach(cb => {
+    cb.checked = isChecked;
+  });
+
+  updateBulkDeleteUI();
+}
+
+/**
+ * Mengubah pilihan seleksi pada satu baris lead
+ */
+function toggleSelectLead(leadId, isChecked) {
+  const safeId = String(leadId || '').trim();
+  if (!safeId) return;
+
+  if (isChecked) {
+    historySelectedLeadIds.add(safeId);
+  } else {
+    historySelectedLeadIds.delete(safeId);
+  }
+
+  updateBulkDeleteUI();
+}
+
+/**
+ * Sinkronisasi status tampilan tombol Hapus Massal dan Checkbox Header
+ */
+function updateBulkDeleteUI() {
+  const btn = document.getElementById('btn-bulk-delete');
+  const countSpan = document.getElementById('bulk-delete-count');
+  const checkAll = document.getElementById('check-all-leads');
+
+  const count = historySelectedLeadIds.size;
+
+  if (countSpan) {
+    countSpan.textContent = count;
+  }
+
+  if (btn) {
+    btn.style.display = count > 0 ? 'inline-flex' : 'none';
+  }
+
+  if (checkAll) {
+    const startIndex = (historyCurrentPage - 1) * historyItemsPerPage;
+    const endIndex = startIndex + historyItemsPerPage;
+    const displayLeads = historyFilteredLeads.slice(startIndex, endIndex);
+
+    if (displayLeads.length === 0) {
+      checkAll.checked = false;
+      checkAll.indeterminate = false;
+    } else {
+      const selectedOnPage = displayLeads.filter(l => historySelectedLeadIds.has(String(l['ID Leads'] || '').trim())).length;
+      if (selectedOnPage === displayLeads.length) {
+        checkAll.checked = true;
+        checkAll.indeterminate = false;
+      } else if (selectedOnPage > 0) {
+        checkAll.checked = false;
+        checkAll.indeterminate = true;
+      } else {
+        checkAll.checked = false;
+        checkAll.indeterminate = false;
+      }
+    }
+  }
+}
+
+/**
+ * Menghapus banyak lead terpilih secara massal (lokal IndexedDB + antrean sinkronisasi)
+ */
+async function bulkDeleteSelectedLeads() {
+  const selectedIds = Array.from(historySelectedLeadIds);
+  if (selectedIds.length === 0) {
+    showToast('Tidak ada data leads yang dipilih.', 'warning');
+    return;
+  }
+
+  const count = selectedIds.length;
+  if (!confirm(`Apakah Anda yakin ingin menghapus ${count} data leads yang dipilih? Data akan dihapus secara permanen.`)) {
+    return;
+  }
+
+  try {
+    // 1. Hapus secara massal dari IndexedDB lokal dalam satu transaksi atomik
+    await window.soviaDb.deleteLeadsBulk(selectedIds);
+
+    // 2. Tambahkan aksi delete_lead ke antrean sinkronisasi secara batch
+    const queueItems = selectedIds.map(id => ({
+      action: 'delete_lead',
+      id: id,
+      type: null,
+      data: null
+    }));
+    await window.soviaDb.addBulkToQueue(queueItems);
+
+    // 3. Bersihkan seleksi
+    historySelectedLeadIds.clear();
+    updateBulkDeleteUI();
+
+    showToast(`Berhasil menghapus ${count} leads secara lokal.`, 'success');
+
+    // 4. Refresh UI
+    await loadLocalDataAndRefreshUI();
+
+    // 5. Trigger sinkronisasi server jika online
+    if (navigator.onLine && window.soviaSync) {
+      window.soviaSync.syncNow().catch(e => {
+        console.warn('Sync background error setelah bulk delete leads:', e);
+      });
+    }
+  } catch (error) {
+    console.error('Gagal menghapus massal leads:', error);
+    showToast(`Gagal menghapus leads massal: ${error.message || error}`, 'error');
   }
 }
 
@@ -1154,8 +1303,9 @@ async function renderHistoryTable() {
   if (!tbody) return;
 
   if (historyFilteredLeads.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="12" class="no-data-msg">Tidak ada data rekapitulasi leads ditemukan.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="13" class="no-data-msg">Tidak ada data rekapitulasi leads ditemukan.</td></tr>`;
     updatePaginationUI();
+    updateBulkDeleteUI();
     return;
   }
 
@@ -1173,6 +1323,8 @@ async function renderHistoryTable() {
   displayLeads.forEach(lead => {
     const isPending = pendingIds.has(lead['ID Leads']);
     const safeLeadId = encodeURIComponent(lead['ID Leads'] || '');
+    const leadId = String(lead['ID Leads'] || '').trim();
+    const isChecked = historySelectedLeadIds.has(leadId);
     
     // Badge status sync
     const badgeHtml = isPending 
@@ -1200,6 +1352,9 @@ async function renderHistoryTable() {
     // Render baris secara batch dengan HTML escaping
     rowsHtml.push(`
       <tr>
+        <td style="text-align: center; padding: 0.5rem 0.6rem;">
+          <input type="checkbox" class="lead-row-check" value="${safeLeadId}" onchange="toggleSelectLead(decodeURIComponent('${safeLeadId}'), this.checked)" ${isChecked ? 'checked' : ''} title="Pilih lead ini">
+        </td>
         <td><strong>${escapeHtml(lead['ID Leads'])}</strong></td>
         <td>${escapeHtml(lead['Tanggal Leads'])}</td>
         <td>${escapeHtml(lead['Nama Sales'])}</td>
@@ -1211,8 +1366,8 @@ async function renderHistoryTable() {
         <td>${contactCell}</td>
         <td>${escapeHtml(lead['Qty'])}</td>
         <td>${badgeHtml}</td>
-        <td style="text-align: center;">
-          <div class="btn-action-group">
+        <td class="col-sticky-action" style="text-align: center;">
+          <div class="btn-action-group" style="justify-content: center;">
             <button class="btn-action edit" onclick="editLead(decodeURIComponent('${safeLeadId}'))" title="Edit Data">
               <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
             </button>
@@ -1227,6 +1382,7 @@ async function renderHistoryTable() {
 
   tbody.innerHTML = rowsHtml.join('');
   updatePaginationUI();
+  updateBulkDeleteUI();
 }
 
 /**
