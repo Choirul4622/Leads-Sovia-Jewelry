@@ -84,9 +84,13 @@ class SoviaDB {
     this._ensureDb();
     return new Promise((resolve, reject) => {
       try {
+        const leadId = lead && lead['ID Leads'] !== undefined && lead['ID Leads'] !== null ? String(lead['ID Leads']).trim() : '';
+        if (!leadId) {
+          return reject(new Error('ID Leads wajib diisi dan tidak boleh kosong.'));
+        }
         const transaction = this.db.transaction(['leads'], 'readwrite');
         const store = transaction.objectStore('leads');
-        const request = store.put(lead, String(lead['ID Leads']));
+        const request = store.put(lead, leadId);
 
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);
@@ -103,9 +107,13 @@ class SoviaDB {
     this._ensureDb();
     return new Promise((resolve, reject) => {
       try {
+        const safeId = leadId !== undefined && leadId !== null ? String(leadId).trim() : '';
+        if (!safeId) {
+          return resolve(); // ID kosong, tidak ada yang perlu dihapus
+        }
         const transaction = this.db.transaction(['leads'], 'readwrite');
         const store = transaction.objectStore('leads');
-        const request = store.delete(String(leadId));
+        const request = store.delete(safeId);
 
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);

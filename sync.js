@@ -324,13 +324,17 @@ class SoviaSync {
     if (!serverData) return;
 
     const queue = await window.soviaDb.getQueue();
+    const processedSet = new Set((justProcessedQueueIds || []).map(id => String(id)));
+    
+    // Saring antrean yang benar-benar masih belum selesai diproses
+    const effectiveQueue = queue.filter(item => !processedSet.has(String(item.queueId)));
     
     // Ambil daftar ID Leads yang masih memiliki antrean edit/delete lokal
     const pendingLeadIds = new Set();
     const deletedPendingIds = new Set();
     const pendingValidationTypes = new Set();
     
-    queue.forEach(item => {
+    effectiveQueue.forEach(item => {
       const safeId = String(item.id || '').trim();
       if (item.action === 'delete_lead' && safeId) {
         deletedPendingIds.add(safeId);
@@ -379,21 +383,20 @@ class SoviaSync {
       });
     }
 
-    // Pertahankan leads lokal yang baru dibuat dan belum ada di server (Offline-First)
+    // Pertahankan leads lokal HANYA jika memang baru dibuat offline dan masih mengantre di sync_queue
     currentLocalLeads.forEach(localLead => {
       const leadId = String(localLead['ID Leads'] || '').trim();
       if (!leadId || deletedPendingIds.has(leadId)) return;
       
-      // Jika belum ada di data server, pertahankan data lokal tersebut
+      // Jika belum ada di data server:
       if (!serverLeadIds.has(leadId)) {
-        leadsToSave.push(localLead);
-        
-        // Jika belum ada di antrean sync, masukkan kembali ke antrean agar disinkronkan ke server
-        if (!pendingLeadIds.has(leadId)) {
-          window.soviaDb.addToQueue('create_lead', leadId, null, localLead).catch(e => {
-            console.warn('Gagal menjadwalkan ulang antrean lead:', e);
-          });
+        // HANYA pertahankan jika memang sedang dalam antrean pending lokal (offline-first create)
+        if (pendingLeadIds.has(leadId)) {
+          leadsToSave.push(localLead);
         }
+        // Jika tidak ada di pendingLeadIds dan tidak ada di serverLeadIds,
+        // artinya data ini telah dihapus di server (oleh perangkat lain atau di Google Sheet).
+        // Jangan masukkan ke leadsToSave dan JANGAN masukkan ke sync queue! (Mencegah Zombie Record)
       }
     });
 

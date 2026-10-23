@@ -134,22 +134,27 @@ document.addEventListener('DOMContentLoaded', async () => {
  * Memuat ulang data dari IndexedDB ke variabel global lalu merender ulang UI
  */
 async function loadLocalDataAndRefreshUI() {
-  currentLeads = await window.soviaDb.getLeads();
-  validationOptions = await window.soviaDb.getValidationOptions();
+  try {
+    currentLeads = await window.soviaDb.getLeads();
+    validationOptions = await window.soviaDb.getValidationOptions();
 
-  // Urutkan leads berdasarkan tanggal leads terbaru di paling atas secara aman
-  currentLeads.sort((a, b) => {
-    const timeA = parseLeadDateToTime(a['Tanggal Leads']);
-    const timeB = parseLeadDateToTime(b['Tanggal Leads']);
-    if (timeB !== timeA) return timeB - timeA;
-    return String(b['ID Leads'] || '').localeCompare(String(a['ID Leads'] || ''));
-  });
+    // Urutkan leads berdasarkan tanggal leads terbaru di paling atas secara aman
+    currentLeads.sort((a, b) => {
+      const timeA = parseLeadDateToTime(a['Tanggal Leads']);
+      const timeB = parseLeadDateToTime(b['Tanggal Leads']);
+      if (timeB !== timeA) return timeB - timeA;
+      return String(b['ID Leads'] || '').localeCompare(String(a['ID Leads'] || ''));
+    });
 
-  // Rerender seluruh komponen UI
-  renderDropdownSelectors();
-  filterHistoryTable();
-  renderDashboard();
-  renderValidationLists();
+    // Rerender seluruh komponen UI
+    renderDropdownSelectors();
+    filterHistoryTable();
+    renderDashboard();
+    renderValidationLists();
+  } catch (err) {
+    console.error('Gagal memuat data lokal:', err);
+    showToast('Gagal memuat data lokal: ' + (err.message || err), 'error');
+  }
 }
 
 /**
@@ -256,7 +261,7 @@ function saveGasUrl() {
    ========================================================================== */
 
 /**
- * Menghasilkan ID Leads Otomatis: SVJ-YYMMDD-HHMMSS-RND
+ * Menghasilkan ID Leads Otomatis yang unik dan tahan tabrakan (collision-proof): SVJ-YYMMDD-HHMMSSMS-RND4
  */
 function generateLeadId() {
   const now = new Date();
@@ -267,16 +272,21 @@ function generateLeadId() {
   const hh = String(now.getHours()).padStart(2, '0');
   const min = String(now.getMinutes()).padStart(2, '0');
   const ss = String(now.getSeconds()).padStart(2, '0');
+  const ms = String(now.getMilliseconds()).padStart(3, '0');
   
-  // Random string 3 digit
+  // Random string 4 karakter (36^4 = 1.679.616 kemungkinan)
   const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let randomStr = '';
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 4; i++) {
     randomStr += characters.charAt(Math.floor(Math.random() * characters.length));
   }
   
-  const generatedId = `SVJ-${yy}${mm}${dd}-${hh}${min}${ss}-${randomStr}`;
-  document.getElementById('lead-id').value = generatedId;
+  const generatedId = `SVJ-${yy}${mm}${dd}-${hh}${min}${ss}${ms}-${randomStr}`;
+  const leadIdInput = document.getElementById('lead-id');
+  if (leadIdInput) {
+    leadIdInput.value = generatedId;
+  }
+  return generatedId;
 }
 
 /**
@@ -739,146 +749,222 @@ function renderDropdownSelectors() {
 async function handleLeadSubmit(event) {
   event.preventDefault();
 
-  const mode = document.getElementById('form-mode').value;
-  const idLeads = document.getElementById('lead-id').value;
-  
-  // Format Tanggal untuk disimpan di DB Sheets (YYYY-MM-DD HH:mm:ss)
-  const inputDateTime = document.getElementById('lead-date').value;
-  let formattedDate = '';
-  if (inputDateTime) {
-    let clean = inputDateTime.replace('T', ' ');
-    if (clean.length === 16) clean += ':00';
-    formattedDate = clean;
-  } else {
-    formattedDate = new Date().toISOString().replace('T', ' ').substring(0, 19);
-  }
+  try {
+    const mode = document.getElementById('form-mode').value;
+    let idLeads = document.getElementById('lead-id').value;
+    
+    // Format Tanggal untuk disimpan di DB Sheets (YYYY-MM-DD HH:mm:ss)
+    const inputDateTime = document.getElementById('lead-date').value;
+    let formattedDate = '';
+    if (inputDateTime) {
+      let clean = inputDateTime.replace('T', ' ');
+      if (clean.length === 16) clean += ':00';
+      formattedDate = clean;
+    } else {
+      formattedDate = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    }
 
-  const salesName = document.getElementById('lead-sales').value;
-  const channelName = document.getElementById('lead-channel').value;
+    const salesName = document.getElementById('lead-sales').value;
+    const channelName = document.getElementById('lead-channel').value;
 
-  if (!salesName || !channelName) {
-    showToast('Harap pilih Nama Sales dan Sumber Channel terlebih dahulu!', 'warning');
-    return;
-  }
-
-  if (mode === 'create') {
-    const rowsToSave = [];
-
-    // 1. Rekapitulasi Leads
-    const rekapRows = document.querySelectorAll('.lead-item-row');
-    rekapRows.forEach((row, i) => {
-      const source = row.querySelector('.lead-item-source')?.value || '';
-      const message = row.querySelector('.lead-item-message')?.value || '';
-      
-      const toggle = row.querySelector('.lead-item-contact-toggle');
-      const isContactActive = toggle && toggle.checked;
-
-      let contacts = [];
-      if (isContactActive) {
-        const contactInputs = row.querySelectorAll('.contact-phone-input');
-        contacts = Array.from(contactInputs).map(inp => inp.value.trim()).filter(Boolean);
-      }
-
-      let qty = 1;
-      if (isContactActive) {
-        qty = contacts.length > 0 ? contacts.length : 1;
-      } else {
-        qty = parseInt(row.querySelector('.lead-item-qty')?.value, 10) || 1;
-      }
-
-      const contactStr = (isContactActive && contacts.length > 0) ? contacts.join(', ') : '-';
-
-      if (source || message || contacts.length > 0) {
-        rowsToSave.push({
-          type: 'rekap',
-          tempId: `${idLeads}-R${i + 1}`,
-          data: {
-            'Sumber Leads': source || '-',
-            'Jenis Pesan': message || '-',
-            'Block Lose': '-',
-            'MQL': '-',
-            'Kontak / No HP': contactStr,
-            'Kontak': contactStr,
-            'Kontak List': contacts,
-            'Qty': qty
-          }
-        });
-      }
-    });
-
-    // 2. Chat Terhenti
-    const terhentiRows = document.querySelectorAll('.terhenti-item-row');
-    terhentiRows.forEach((row, i) => {
-      const block = row.querySelector('.terhenti-item-block')?.value || '';
-      const qty = parseInt(row.querySelector('.terhenti-item-qty')?.value, 10) || 1;
-      if (block) {
-        rowsToSave.push({
-          type: 'terhenti',
-          tempId: `${idLeads}-T${i + 1}`,
-          data: {
-            'Sumber Leads': '-',
-            'Jenis Pesan': '-',
-            'Block Lose': block,
-            'MQL': '-',
-            'Kontak / No HP': '-',
-            'Kontak': '-',
-            'Kontak List': [],
-            'Qty': qty
-          }
-        });
-      }
-    });
-
-    // 3. Chat Lama
-    const lamaRows = document.querySelectorAll('.lama-item-row');
-    lamaRows.forEach((row, i) => {
-      const mql = row.querySelector('.lama-item-mql')?.value || '';
-      const qty = parseInt(row.querySelector('.lama-item-qty')?.value, 10) || 1;
-      if (mql) {
-        rowsToSave.push({
-          type: 'lama',
-          tempId: `${idLeads}-L${i + 1}`,
-          data: {
-            'Sumber Leads': '-',
-            'Jenis Pesan': '-',
-            'Block Lose': '-',
-            'MQL': mql,
-            'Kontak / No HP': '-',
-            'Kontak': '-',
-            'Kontak List': [],
-            'Qty': qty
-          }
-        });
-      }
-    });
-
-    if (rowsToSave.length === 0) {
-      showToast('Harap isi minimal 1 baris item Leads, Chat Terhenti, atau Chat Lama!', 'warning');
+    if (!salesName || !channelName) {
+      showToast('Harap pilih Nama Sales dan Sumber Channel terlebih dahulu!', 'warning');
       return;
     }
 
-    // Jika hanya ada 1 item dari seluruh kategori, pertahankan base ID asli
-    if (rowsToSave.length === 1) {
-      rowsToSave[0].tempId = idLeads;
-    }
+    if (mode === 'create') {
+      // Pastikan ID tidak kosong atau tidak sengaja bentrok dengan data lokal yang sudah ada
+      if (!idLeads || currentLeads.some(l => l['ID Leads'] === idLeads)) {
+        idLeads = generateLeadId();
+      }
 
-    // Simpan masing-masing baris item rekapitulasi ke DB lokal & server queue
-    for (let i = 0; i < rowsToSave.length; i++) {
-      const item = rowsToSave[i];
+      const rowsToSave = [];
+
+      // 1. Rekapitulasi Leads
+      const rekapRows = document.querySelectorAll('.lead-item-row');
+      rekapRows.forEach((row, i) => {
+        const source = row.querySelector('.lead-item-source')?.value || '';
+        const message = row.querySelector('.lead-item-message')?.value || '';
+        
+        const toggle = row.querySelector('.lead-item-contact-toggle');
+        const isContactActive = toggle && toggle.checked;
+
+        let contacts = [];
+        if (isContactActive) {
+          const contactInputs = row.querySelectorAll('.contact-phone-input');
+          contacts = Array.from(contactInputs).map(inp => inp.value.trim()).filter(Boolean);
+        }
+
+        let qty = 1;
+        if (isContactActive) {
+          qty = contacts.length > 0 ? contacts.length : 1;
+        } else {
+          qty = parseInt(row.querySelector('.lead-item-qty')?.value, 10) || 1;
+        }
+
+        const contactStr = (isContactActive && contacts.length > 0) ? contacts.join(', ') : '-';
+
+        if (source || message || contacts.length > 0) {
+          rowsToSave.push({
+            type: 'rekap',
+            tempId: `${idLeads}-R${i + 1}`,
+            data: {
+              'Sumber Leads': source || '-',
+              'Jenis Pesan': message || '-',
+              'Block Lose': '-',
+              'MQL': '-',
+              'Kontak / No HP': contactStr,
+              'Kontak': contactStr,
+              'Kontak List': contacts,
+              'Qty': qty
+            }
+          });
+        }
+      });
+
+      // 2. Chat Terhenti
+      const terhentiRows = document.querySelectorAll('.terhenti-item-row');
+      terhentiRows.forEach((row, i) => {
+        const block = row.querySelector('.terhenti-item-block')?.value || '';
+        const qty = parseInt(row.querySelector('.terhenti-item-qty')?.value, 10) || 1;
+        if (block) {
+          rowsToSave.push({
+            type: 'terhenti',
+            tempId: `${idLeads}-T${i + 1}`,
+            data: {
+              'Sumber Leads': '-',
+              'Jenis Pesan': '-',
+              'Block Lose': block,
+              'MQL': '-',
+              'Kontak / No HP': '-',
+              'Kontak': '-',
+              'Kontak List': [],
+              'Qty': qty
+            }
+          });
+        }
+      });
+
+      // 3. Chat Lama
+      const lamaRows = document.querySelectorAll('.lama-item-row');
+      lamaRows.forEach((row, i) => {
+        const mql = row.querySelector('.lama-item-mql')?.value || '';
+        const qty = parseInt(row.querySelector('.lama-item-qty')?.value, 10) || 1;
+        if (mql) {
+          rowsToSave.push({
+            type: 'lama',
+            tempId: `${idLeads}-L${i + 1}`,
+            data: {
+              'Sumber Leads': '-',
+              'Jenis Pesan': '-',
+              'Block Lose': '-',
+              'MQL': mql,
+              'Kontak / No HP': '-',
+              'Kontak': '-',
+              'Kontak List': [],
+              'Qty': qty
+            }
+          });
+        }
+      });
+
+      if (rowsToSave.length === 0) {
+        showToast('Harap isi minimal 1 baris item Leads, Chat Terhenti, atau Chat Lama!', 'warning');
+        return;
+      }
+
+      // Jika hanya ada 1 item dari seluruh kategori, pertahankan base ID asli
+      if (rowsToSave.length === 1) {
+        rowsToSave[0].tempId = idLeads;
+      }
+
+      // Simpan masing-masing baris item rekapitulasi ke DB lokal & server queue
+      for (let i = 0; i < rowsToSave.length; i++) {
+        const item = rowsToSave[i];
+        const leadData = {
+          'ID Leads': item.tempId,
+          'Tanggal Leads': formattedDate,
+          'Nama Sales': salesName,
+          'Sumber Channel': channelName,
+          'Sumber Leads': item.data['Sumber Leads'],
+          'Jenis Pesan': item.data['Jenis Pesan'],
+          'Block Lose': item.data['Block Lose'],
+          'MQL': item.data['MQL'],
+          'Kontak / No HP': item.data['Kontak / No HP'] || '-',
+          'Kontak': item.data['Kontak'] || '-',
+          'Kontak List': item.data['Kontak List'] || [],
+          'Qty': item.data['Qty'],
+          'Timestamp Created': new Date().toISOString(),
+          'Timestamp Updated': new Date().toISOString(),
+          'Status': 'Active'
+        };
+
+        // 1. Simpan Lokal ke IndexedDB
+        await window.soviaDb.saveLead(leadData);
+
+        // 2. Antrekan ke Sync Queue
+        await window.soviaDb.addToQueue('create_lead', item.tempId, null, leadData);
+      }
+
+      showToast(`Berhasil menyimpan ${rowsToSave.length} rekap leads secara lokal.`, 'success');
+
+    } else {
+      // Edit mode (hanya 1 baris item terpilih yang di-update)
+      let source = '-';
+      let message = '-';
+      let block = '-';
+      let mql = '-';
+      let qty = 1;
+      let contactStr = '-';
+      let contacts = [];
+
+      const rekapSection = document.getElementById('leads-items-container')?.parentElement;
+      const terhentiSection = document.getElementById('terhenti-items-container')?.parentElement;
+      const lamaSection = document.getElementById('lama-items-container')?.parentElement;
+
+      const rekapRow = document.querySelector('.lead-item-row');
+      const terhentiRow = document.querySelector('.terhenti-item-row');
+      const lamaRow = document.querySelector('.lama-item-row');
+
+      if (rekapSection && rekapSection.style.display !== 'none' && rekapRow) {
+        source = rekapRow.querySelector('.lead-item-source')?.value || '-';
+        message = rekapRow.querySelector('.lead-item-message')?.value || '-';
+        const toggle = rekapRow.querySelector('.lead-item-contact-toggle');
+        const isContactActive = toggle && toggle.checked;
+        if (isContactActive) {
+          const contactInputs = rekapRow.querySelectorAll('.contact-phone-input');
+          contacts = Array.from(contactInputs).map(inp => inp.value.trim()).filter(Boolean);
+          qty = contacts.length > 0 ? contacts.length : 1;
+          contactStr = contacts.length > 0 ? contacts.join(', ') : '-';
+        } else {
+          qty = parseInt(rekapRow.querySelector('.lead-item-qty')?.value, 10) || 1;
+          contactStr = '-';
+        }
+      } else if (terhentiSection && terhentiSection.style.display !== 'none' && terhentiRow) {
+        block = terhentiRow.querySelector('.terhenti-item-block')?.value || '-';
+        qty = parseInt(terhentiRow.querySelector('.terhenti-item-qty')?.value, 10) || 1;
+      } else if (lamaSection && lamaSection.style.display !== 'none' && lamaRow) {
+        mql = lamaRow.querySelector('.lama-item-mql')?.value || '-';
+        qty = parseInt(lamaRow.querySelector('.lama-item-qty')?.value, 10) || 1;
+      }
+
+      const existingLead = currentLeads.find(l => l['ID Leads'] === idLeads);
+      const originalCreated = (existingLead && existingLead['Timestamp Created']) ? existingLead['Timestamp Created'] : new Date().toISOString();
+
       const leadData = {
-        'ID Leads': item.tempId,
+        'ID Leads': idLeads,
         'Tanggal Leads': formattedDate,
         'Nama Sales': salesName,
         'Sumber Channel': channelName,
-        'Sumber Leads': item.data['Sumber Leads'],
-        'Jenis Pesan': item.data['Jenis Pesan'],
-        'Block Lose': item.data['Block Lose'],
-        'MQL': item.data['MQL'],
-        'Kontak / No HP': item.data['Kontak / No HP'] || '-',
-        'Kontak': item.data['Kontak'] || '-',
-        'Kontak List': item.data['Kontak List'] || [],
-        'Qty': item.data['Qty'],
-        'Timestamp Created': new Date().toISOString(),
+        'Sumber Leads': source,
+        'Jenis Pesan': message,
+        'Block Lose': block,
+        'MQL': mql,
+        'Kontak / No HP': contactStr,
+        'Kontak': contactStr,
+        'Kontak List': contacts,
+        'Qty': qty,
+        'Timestamp Created': originalCreated,
         'Timestamp Updated': new Date().toISOString(),
         'Status': 'Active'
       };
@@ -887,89 +973,25 @@ async function handleLeadSubmit(event) {
       await window.soviaDb.saveLead(leadData);
 
       // 2. Antrekan ke Sync Queue
-      await window.soviaDb.addToQueue('create_lead', item.tempId, null, leadData);
+      await window.soviaDb.addToQueue('update_lead', idLeads, null, leadData);
+
+      showToast(`Lead ${idLeads} diperbarui secara lokal.`, 'success');
     }
 
-    showToast(`Berhasil menyimpan ${rowsToSave.length} rekap leads secara lokal.`, 'success');
+    // 4. Bersihkan Form
+    resetLeadForm();
 
-  } else {
-    // Edit mode (hanya 1 baris item terpilih yang di-update)
-    let source = '-';
-    let message = '-';
-    let block = '-';
-    let mql = '-';
-    let qty = 1;
-    let contactStr = '-';
-    let contacts = [];
-
-    const rekapSection = document.getElementById('leads-items-container')?.parentElement;
-    const terhentiSection = document.getElementById('terhenti-items-container')?.parentElement;
-    const lamaSection = document.getElementById('lama-items-container')?.parentElement;
-
-    const rekapRow = document.querySelector('.lead-item-row');
-    const terhentiRow = document.querySelector('.terhenti-item-row');
-    const lamaRow = document.querySelector('.lama-item-row');
-
-    if (rekapSection && rekapSection.style.display !== 'none' && rekapRow) {
-      source = rekapRow.querySelector('.lead-item-source')?.value || '-';
-      message = rekapRow.querySelector('.lead-item-message')?.value || '-';
-      const toggle = rekapRow.querySelector('.lead-item-contact-toggle');
-      const isContactActive = toggle && toggle.checked;
-      if (isContactActive) {
-        const contactInputs = rekapRow.querySelectorAll('.contact-phone-input');
-        contacts = Array.from(contactInputs).map(inp => inp.value.trim()).filter(Boolean);
-        qty = contacts.length > 0 ? contacts.length : 1;
-        contactStr = contacts.length > 0 ? contacts.join(', ') : '-';
-      } else {
-        qty = parseInt(rekapRow.querySelector('.lead-item-qty')?.value, 10) || 1;
-        contactStr = '-';
-      }
-    } else if (terhentiSection && terhentiSection.style.display !== 'none' && terhentiRow) {
-      block = terhentiRow.querySelector('.terhenti-item-block')?.value || '-';
-      qty = parseInt(terhentiRow.querySelector('.terhenti-item-qty')?.value, 10) || 1;
-    } else if (lamaSection && lamaSection.style.display !== 'none' && lamaRow) {
-      mql = lamaRow.querySelector('.lama-item-mql')?.value || '-';
-      qty = parseInt(lamaRow.querySelector('.lama-item-qty')?.value, 10) || 1;
+    // 5. Muat ulang data & trigger sinkronisasi
+    await loadLocalDataAndRefreshUI();
+    
+    if (navigator.onLine && window.soviaSync) {
+      window.soviaSync.syncNow().catch(e => {
+        console.warn('Sync background error setelah submit:', e);
+      });
     }
-
-    const existingLead = currentLeads.find(l => l['ID Leads'] === idLeads);
-    const originalCreated = (existingLead && existingLead['Timestamp Created']) ? existingLead['Timestamp Created'] : new Date().toISOString();
-
-    const leadData = {
-      'ID Leads': idLeads,
-      'Tanggal Leads': formattedDate,
-      'Nama Sales': salesName,
-      'Sumber Channel': channelName,
-      'Sumber Leads': source,
-      'Jenis Pesan': message,
-      'Block Lose': block,
-      'MQL': mql,
-      'Kontak / No HP': contactStr,
-      'Kontak': contactStr,
-      'Kontak List': contacts,
-      'Qty': qty,
-      'Timestamp Created': originalCreated,
-      'Timestamp Updated': new Date().toISOString(),
-      'Status': 'Active'
-    };
-
-    // 1. Simpan Lokal ke IndexedDB
-    await window.soviaDb.saveLead(leadData);
-
-    // 2. Antrekan ke Sync Queue
-    await window.soviaDb.addToQueue('update_lead', idLeads, null, leadData);
-
-    showToast(`Lead ${idLeads} diperbarui secara lokal.`, 'success');
-  }
-
-  // 4. Bersihkan Form
-  resetLeadForm();
-
-  // 5. Muat ulang data & trigger sinkronisasi
-  await loadLocalDataAndRefreshUI();
-  
-  if (navigator.onLine) {
-    window.soviaSync.syncNow();
+  } catch (error) {
+    console.error('Gagal memproses submit lead:', error);
+    showToast(`Gagal menyimpan data: ${error.message || error}`, 'error');
   }
 }
 
@@ -1053,24 +1075,32 @@ async function editLead(leadId) {
 }
 
 /**
- * Menghapus lead
+ * Menghapus lead secara aman (lokal IndexedDB + antrean sinkronisasi server)
  */
 async function deleteLead(leadId) {
-  if (confirm(`Apakah Anda yakin ingin menghapus data leads ${leadId}?`)) {
+  if (!confirm(`Apakah Anda yakin ingin menghapus data leads ${leadId}?`)) {
+    return;
+  }
+  try {
     // 1. Hapus secara lokal dari IndexedDB
     await window.soviaDb.deleteLead(leadId);
 
     // 2. Tambahkan aksi delete_lead ke antrean sinkronisasi
     await window.soviaDb.addToQueue('delete_lead', leadId, null, null);
 
-    showToast(`Lead ${leadId} dihapus secara lokal.`, 'success');
+    showToast(`Lead ${leadId} berhasil dihapus secara lokal.`, 'success');
 
     // 3. Refresh UI & Sinkronisasi
     await loadLocalDataAndRefreshUI();
     
-    if (navigator.onLine) {
-      window.soviaSync.syncNow();
+    if (navigator.onLine && window.soviaSync) {
+      window.soviaSync.syncNow().catch(e => {
+        console.warn('Sync background error setelah delete lead:', e);
+      });
     }
+  } catch (error) {
+    console.error(`Gagal menghapus lead ${leadId}:`, error);
+    showToast(`Gagal menghapus lead: ${error.message || error}`, 'error');
   }
 }
 
@@ -1380,51 +1410,61 @@ function renderOptionList(type, list) {
 }
 
 /**
- * Menambahkan opsi baru
+ * Menambahkan opsi baru secara aman
  */
 async function addOption(type) {
-  const inputEl = document.getElementById(`input-${type}`);
-  if (!inputEl) return;
-  const newVal = inputEl.value.trim();
-  
-  if (!newVal) return;
+  try {
+    const inputEl = document.getElementById(`input-${type}`);
+    if (!inputEl) return;
+    const newVal = inputEl.value.trim();
+    
+    if (!newVal) return;
 
-  const dbType = getDbType(type);
-  if (!dbType) return;
-  let currentList = getOptionArray(type);
+    const dbType = getDbType(type);
+    if (!dbType) return;
+    let currentList = getOptionArray(type);
 
-  // Validasi duplikat secara case-insensitive & aman
-  const lowerNewVal = newVal.toLowerCase();
-  if (currentList.some(item => String(item).toLowerCase() === lowerNewVal)) {
-    showToast('Opsi sudah ada di daftar!', 'warning');
-    return;
-  }
+    // Validasi duplikat secara case-insensitive & aman
+    const lowerNewVal = newVal.toLowerCase();
+    if (currentList.some(item => String(item).toLowerCase() === lowerNewVal)) {
+      showToast('Opsi sudah ada di daftar!', 'warning');
+      return;
+    }
 
-  currentList.push(newVal);
+    currentList.push(newVal);
 
-  // 1. Simpan Lokal ke IndexedDB
-  await window.soviaDb.saveValidationOptions(dbType, currentList);
+    // 1. Simpan Lokal ke IndexedDB
+    await window.soviaDb.saveValidationOptions(dbType, currentList);
 
-  // 2. Masukkan ke Sync Queue
-  await window.soviaDb.addToQueue('update_options', null, dbType, currentList);
+    // 2. Masukkan ke Sync Queue
+    await window.soviaDb.addToQueue('update_options', null, dbType, currentList);
 
-  // Reset input
-  inputEl.value = '';
-  showToast(`Opsi "${newVal}" berhasil ditambahkan secara lokal.`, 'success');
+    // Reset input
+    inputEl.value = '';
+    showToast(`Opsi "${newVal}" berhasil ditambahkan secara lokal.`, 'success');
 
-  // 3. Refresh UI & Sinkronisasi
-  await loadLocalDataAndRefreshUI();
-  
-  if (navigator.onLine) {
-    window.soviaSync.syncNow();
+    // 3. Refresh UI & Sinkronisasi
+    await loadLocalDataAndRefreshUI();
+    
+    if (navigator.onLine && window.soviaSync) {
+      window.soviaSync.syncNow().catch(e => {
+        console.warn('Sync background error setelah add option:', e);
+      });
+    }
+  } catch (error) {
+    console.error(`Gagal menambah opsi ${type}:`, error);
+    showToast(`Gagal menambah opsi: ${error.message || error}`, 'error');
   }
 }
 
 /**
- * Menghapus opsi
+ * Menghapus opsi secara aman
  */
 async function deleteOption(type, value) {
-  if (confirm(`Apakah Anda yakin ingin menghapus opsi "${value}"?`)) {
+  if (!confirm(`Apakah Anda yakin ingin menghapus opsi "${value}"?`)) {
+    return;
+  }
+  try {
     const dbType = getDbType(type);
     let currentList = getOptionArray(type);
 
@@ -1441,9 +1481,14 @@ async function deleteOption(type, value) {
     // 3. Refresh UI & Sinkronisasi
     await loadLocalDataAndRefreshUI();
     
-    if (navigator.onLine) {
-      window.soviaSync.syncNow();
+    if (navigator.onLine && window.soviaSync) {
+      window.soviaSync.syncNow().catch(e => {
+        console.warn('Sync background error setelah delete option:', e);
+      });
     }
+  } catch (error) {
+    console.error(`Gagal menghapus opsi ${value}:`, error);
+    showToast(`Gagal menghapus opsi: ${error.message || error}`, 'error');
   }
 }
 
@@ -2173,33 +2218,38 @@ function renderDashboard() {
 
   // 3b. Render Analitik Per Block Lose Global
   const blockContainer = document.getElementById('block-analytics-container');
-  blockContainer.innerHTML = '';
-  document.getElementById('block-analytics-qty').innerText = `Total: ${globalTerhentiQty} Leads (${globalTerhentiLeads.length} Recap)`;
+  const blockQtyEl = document.getElementById('block-analytics-qty');
+  if (blockQtyEl) {
+    blockQtyEl.innerText = `Total: ${globalTerhentiQty} Leads (${globalTerhentiLeads.length} Recap)`;
+  }
 
-  const blockGroups = {};
-  globalTerhentiLeads.forEach(lead => {
-    const block = lead['Block Lose'] || 'Tidak Diketahui';
-    const qty = parseInt(lead['Qty'], 10) || 0;
-    if (!blockGroups[block]) blockGroups[block] = { qty: 0, count: 0 };
-    blockGroups[block].qty += qty;
-    blockGroups[block].count += 1;
-  });
-
-  const blockSortedKeys = Object.keys(blockGroups).sort();
-  if (blockSortedKeys.length === 0) {
-    blockContainer.innerHTML = `<p class="no-data-msg" style="padding: 1rem 0;">Tidak ada data Block Lose untuk range ini.</p>`;
-  } else {
-    blockSortedKeys.forEach(block => {
-      const bData = blockGroups[block];
-      const cardHtml = `
-        <div class="card">
-          <span class="card-title">${block}</span>
-          <span class="card-value" style="font-size: 1.85rem;">${bData.qty} Leads</span>
-          <span style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">${bData.count} Recap</span>
-        </div>
-      `;
-      blockContainer.insertAdjacentHTML('beforeend', cardHtml);
+  if (blockContainer) {
+    blockContainer.innerHTML = '';
+    const blockGroups = {};
+    globalTerhentiLeads.forEach(lead => {
+      const block = lead['Block Lose'] || 'Tidak Diketahui';
+      const qty = parseInt(lead['Qty'], 10) || 0;
+      if (!blockGroups[block]) blockGroups[block] = { qty: 0, count: 0 };
+      blockGroups[block].qty += qty;
+      blockGroups[block].count += 1;
     });
+
+    const blockSortedKeys = Object.keys(blockGroups).sort();
+    if (blockSortedKeys.length === 0) {
+      blockContainer.innerHTML = `<p class="no-data-msg" style="padding: 1rem 0;">Tidak ada data Block Lose untuk range ini.</p>`;
+    } else {
+      blockSortedKeys.forEach(block => {
+        const bData = blockGroups[block];
+        const cardHtml = `
+          <div class="card">
+            <span class="card-title">${block}</span>
+            <span class="card-value" style="font-size: 1.85rem;">${bData.qty} Leads</span>
+            <span style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">${bData.count} Recap</span>
+          </div>
+        `;
+        blockContainer.insertAdjacentHTML('beforeend', cardHtml);
+      });
+    }
   }
 
   // 3c. Render Analitik Per MQL Global
@@ -2209,33 +2259,38 @@ function renderDashboard() {
   const globalLamaQty = globalLamaLeads.reduce((acc, curr) => acc + (parseInt(curr['Qty'], 10) || 0), 0);
 
   const mqlContainer = document.getElementById('mql-analytics-container');
-  mqlContainer.innerHTML = '';
-  document.getElementById('mql-analytics-qty').innerText = `Total: ${globalLamaQty} Leads (${globalLamaLeads.length} Recap)`;
+  const mqlQtyEl = document.getElementById('mql-analytics-qty');
+  if (mqlQtyEl) {
+    mqlQtyEl.innerText = `Total: ${globalLamaQty} Leads (${globalLamaLeads.length} Recap)`;
+  }
 
-  const mqlGroups = {};
-  globalLamaLeads.forEach(lead => {
-    const mql = lead['MQL'] || 'Tidak Diketahui';
-    const qty = parseInt(lead['Qty'], 10) || 0;
-    if (!mqlGroups[mql]) mqlGroups[mql] = { qty: 0, count: 0 };
-    mqlGroups[mql].qty += qty;
-    mqlGroups[mql].count += 1;
-  });
-
-  const mqlSortedKeys = Object.keys(mqlGroups).sort();
-  if (mqlSortedKeys.length === 0) {
-    mqlContainer.innerHTML = `<p class="no-data-msg" style="padding: 1rem 0;">Tidak ada data MQL untuk range ini.</p>`;
-  } else {
-    mqlSortedKeys.forEach(mql => {
-      const mData = mqlGroups[mql];
-      const cardHtml = `
-        <div class="card">
-          <span class="card-title">${mql}</span>
-          <span class="card-value" style="font-size: 1.85rem;">${mData.qty} Leads</span>
-          <span style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">${mData.count} Recap</span>
-        </div>
-      `;
-      mqlContainer.insertAdjacentHTML('beforeend', cardHtml);
+  if (mqlContainer) {
+    mqlContainer.innerHTML = '';
+    const mqlGroups = {};
+    globalLamaLeads.forEach(lead => {
+      const mql = lead['MQL'] || 'Tidak Diketahui';
+      const qty = parseInt(lead['Qty'], 10) || 0;
+      if (!mqlGroups[mql]) mqlGroups[mql] = { qty: 0, count: 0 };
+      mqlGroups[mql].qty += qty;
+      mqlGroups[mql].count += 1;
     });
+
+    const mqlSortedKeys = Object.keys(mqlGroups).sort();
+    if (mqlSortedKeys.length === 0) {
+      mqlContainer.innerHTML = `<p class="no-data-msg" style="padding: 1rem 0;">Tidak ada data MQL untuk range ini.</p>`;
+    } else {
+      mqlSortedKeys.forEach(mql => {
+        const mData = mqlGroups[mql];
+        const cardHtml = `
+          <div class="card">
+            <span class="card-title">${mql}</span>
+            <span class="card-value" style="font-size: 1.85rem;">${mData.qty} Leads</span>
+            <span style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">${mData.count} Recap</span>
+          </div>
+        `;
+        mqlContainer.insertAdjacentHTML('beforeend', cardHtml);
+      });
+    }
   }
 
   // 4. Render Detail Drill-down Rekapitulasi Leads (Nama Sales -> Sumber Channel -> Sumber Leads -> Jenis Pesan -> Total Leads)
